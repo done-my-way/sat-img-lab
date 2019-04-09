@@ -1,0 +1,26 @@
+ Image Format           :    GeoTIFF (No Compression)
+ Image Size             :    1700 Columns x 838 Lines x 3 Bands
+ Image Type             :    8-bit
+
+ Georeference Units     : TM          D206
+ Projection             : Transverse Mercator (Gauss-Krueger)
+ Datum - Ellipsoid      : S-42 (Pulkovo 1942) (Slovakia) - Krassovsky 1940
+ Grid units             : METRE
+
+ Upper Left  Corner     :      4190500.000  E        5500000.000  N 
+ Upper Right Corner     :      4615500.000  E        5500000.000  N 
+ Image Centre           :      4403000.000  E        5395250.000  N 
+ Lower Left  Corner     :      4190500.000  E        5290500.000  N 
+ Lower Right Corner     :      4615500.000  E        5290500.000  N 
+
+ Pixel Size             :          250.000  E            250.000  N 
+
+ Upper Left  Corner     :  16d43'19.70" E  Lon   49d33'09.95" N  Lat
+ Upper Right Corner     :  22d35'54.40" E  Lon   49d37'15.06" N  Lat
+ Image Centre           :  19d40'57.77" E  Lon   48d40'56.94" N  Lat
+ Lower Left  Corner     :  16d52'41.74" E  Lon   47d40'26.05" N  Lat
+ Lower Right Corner     :  22d32'23.76" E  Lon   47d44'15.56" N  Lat
+
+ True origin            :    21d00'00.0000"E  0d00'00.0000"N
+ False: Easting/Northing:       4500000.00            0.00
+ Scale                  :     1.0000000000
