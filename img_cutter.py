@@ -5,7 +5,6 @@ import numpy
 
 class imgCutter:
     """ """
-
     def __init__(self, path):
         self.img = imread(path)
 
