@@ -51,6 +51,5 @@ class imgCutter:
 
 
 if __name__ == "__main__":
-    im = imgCutter('/home/lodya/Documents/DigDes/sat-img-lab/MOS_SK_GK4_250/MOS_SK_GK4_250.tif')
-    im.cut_image()
-    im.save_tiles('./test')
+    im = imgCutter('/home/lodya/Desktop/satellite/T43WEP_20170713T065011_B01.jp2')
+    im.show_image()

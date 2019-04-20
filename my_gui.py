@@ -1,13 +1,15 @@
 from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QPushButton,
 QHBoxLayout, QGridLayout, QAction, QFileDialog)
-from PyQt5.QtGui import QPixmap, QCursor
+from PyQt5.QtGui import QPixmap, QCursor, QImage
 from PyQt5.QtCore import pyqtSignal, Qt
 import sys
 import os
 from imageio import imread, imwrite
 import tempfile
-from numpy import uint8
+from numpy import uint8, ones
+from collections import namedtuple
 
+import cv2
 class Canvas(QLabel):
 
     """ Allows position tracking relative within an image."""
@@ -16,7 +18,7 @@ class Canvas(QLabel):
 
     def __init__(self, parent):
         super().__init__(parent)
-        self.setStyleSheet("background-color: rgb(255,0,0); margin:0px; border:1px solid rgb(0, 255, 0)") # ; max-height:600px; min-height:600px; max-width:600px; min-width:600px")
+        self.setStyleSheet("background-color: rgb(255,0,0); margin:0px; border:1px solid rgb(0, 255, 0); max-height:150px; min-height:150px; max-width:150px; min-width:150px")
         self.setMouseTracking(True)
 
     def mousePressEvent(self, e):
@@ -47,7 +49,7 @@ class myGUI(QWidget):
         self.btn_type_1.setText('Type: Forest')
         self.btn_next.setText('Next')
 
-        pixm = QPixmap('test.jpg').scaled(600, 600, Qt.KeepAspectRatio)
+        pixm = QPixmap('test.jpg')# .scaled(600, 600, Qt.KeepAspectRatio)
         self.lbl.setPixmap(pixm)
         self.btn_next.setVisible(False)
 
@@ -58,7 +60,7 @@ class myGUI(QWidget):
         grid.addWidget(self.btn_next, 0, 1, Qt.AlignBottom)
         self.setLayout(grid)
 
-        self.lbl.pressed.connect(self.print_coordinates)
+        self.lbl.pressed.connect(self.magic_wand)
         # btn_open opens a dialogue for selecting a directory
         # containing the images to label.
         self.btn_open.pressed.connect(self.showDialog)
@@ -86,10 +88,11 @@ class myGUI(QWidget):
         """
 
         path = self.dir_path + '/' + self.tiles_list.pop()        
-        img = imread(path)
-        img = img.astype(uint8)
-        imwrite('temp.jpg', img, format='jpg')
-        pixm = QPixmap('temp.jpg').scaled(600, 600, Qt.KeepAspectRatio)
+        self.img = imread(path)
+        self.img = self.img.astype(uint8)
+        imwrite('temp.jpg', self.img, format='jpg')
+        self.self_img_2 = cv2.imread('temp.jpg')
+        pixm = QPixmap('temp.jpg')# .scaled(600, 600, Qt.KeepAspectRatio)
         self.lbl.setPixmap(pixm)
 
         os.remove('temp.jpg')
@@ -97,6 +100,20 @@ class myGUI(QWidget):
 
     def print_coordinates(self, x, y):
         print(x, y)
+
+    def magic_wand(self, x, y):
+
+        print(x, y)
+        Point = namedtuple('Point', 'x, y')
+        seedPoint = Point(x, y)
+        flags = 4 | 255 << 8
+        flags |= cv2.FLOODFILL_FIXED_RANGE | cv2.FLOODFILL_MASK_ONLY
+        self.mask = 0 * ones((150+2, 150+2), dtype=uint8)
+        cv2.floodFill(self.self_img_2, self.mask, seedPoint, 0, (20,)*3, (20,)*3, flags)
+        imwrite('mask.jpg', self.mask)
+        mask = QImage(self.mask.data, self.mask.shape[1], self.mask.shape[0], self.mask.strides[0], QImage.Format_Indexed8)
+        pixm = QPixmap(mask)# .scaled(600, 600, Qt.KeepAspectRatio)
+        self.lbl.setPixmap(pixm)
 
     def mark_as(self, n):
 
