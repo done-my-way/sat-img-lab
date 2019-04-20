@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QPushButton,
-QHBoxLayout, QGridLayout, QAction, QFileDialog, QSlider)
+QHBoxLayout, QGridLayout, QAction, QFileDialog, QSlider, QSizeGrip)
 from PyQt5.QtGui import QPixmap, QCursor, QImage
 from PyQt5.QtCore import pyqtSignal, Qt
 import sys
@@ -9,20 +9,27 @@ import tempfile
 from numpy import uint8, ones
 from collections import namedtuple
 
+from pathlib import Path
+
 import cv2
 import numpy 
 import matplotlib.pyplot as plt
 
+# needed to pass selected point coordinates to the cv2.floodFill()
+Point = namedtuple('Point', 'x, y')
+
 class Canvas(QLabel):
 
-    """ Allows position tracking relative within an image."""
+    """ Allows relative position tracking  within an image."""
 
     pressed = pyqtSignal(int, int)
 
     def __init__(self, parent):
         super().__init__(parent)
-        #self.setStyleSheet("background-color: rgb(255,0,0); margin:0px; border:1px solid rgb(0, 255, 0); max-height:150px; min-height:150px; max-width:150px; min-width:150px")
         self.setMouseTracking(True)
+        self.grip1 = QSizeGrip(self)
+        self.layout = QHBoxLayout(self)
+        self.layout.addWidget(self.grip1, 0, Qt.AlignRight | Qt.AlignBottom)
 
     def mousePressEvent(self, e):
         x_max = self.width()
@@ -55,16 +62,23 @@ class myGUI(QWidget):
         self.btn_type_1.setText('Type: Forest')
         self.btn_next.setText('Next')
 
-        pixm = QPixmap('test.jpg')# .scaled(600, 600, Qt.KeepAspectRatio)
+        pixm = QPixmap('plug.jpg')
+        self.img = imread('plug.jpg')
+        self.img = self.img.astype(uint8)
         self.lbl.setPixmap(pixm)
         self.btn_next.setVisible(False)
 
+        self._ih = pixm.height()
+        self._iw = pixm.width()
+
         self.sld = QSlider(Qt.Horizontal, self)
-        self.sld.setFixedSize(300, 30)
-        self.sld.setMaximum = 100
-        self.sld.setMinimum = 0
+        self.sld.setFixedSize(500, 30)
+        self.sld.setMaximum(255)
+        self.sld.setMinimum(0)
+        self.sld.setValue(20)
         self.sld.setTickPosition(QSlider.TicksBelow)
         self.sld.setTickInterval(10)
+        
 
         grid = QGridLayout()
         grid.addWidget(self.lbl, 0, 0, Qt.AlignCenter)
@@ -103,14 +117,14 @@ class myGUI(QWidget):
             The .tif file is opened - saved as jpg (by ) - and reopened as jpg.
         """
 
-        path = self.dir_path + '/' + self.tiles_list.pop()        
+        path = Path(self.dir_path, self.tiles_list.pop())      
         self.img = imread(path)
-        self.img = self.img.astype(uint8)
+        self.img = self.img.astype(uint8) #DOES THIS AFFECT THE IMAGE
         imwrite('temp.jpg', self.img, format='jpg')
-        self.self_img_2 = cv2.imread('temp.jpg')
-        pixm = QPixmap('temp.jpg')# .scaled(600, 600, Qt.KeepAspectRatio)
-        self._ih = QPixmap.height()
-        self._iw = QPixmap.width()
+        self.img = cv2.imread('temp.jpg')
+        pixm = QPixmap('temp.jpg')
+        self._ih = pixm.height()
+        self._iw = pixm.width()
         self.lbl.setPixmap(pixm)
 
         os.remove('temp.jpg')
@@ -123,29 +137,32 @@ class myGUI(QWidget):
         print(x, y)
 
     def magic_wand(self, x, y, thresh=25):
+
+        """Choose a connected component and show the chosen region"""
+        
+        # move slider to the initial position
+        self.sld.setValue(thresh)
+        # change seedPoint coordinates
         self._x = x
-        self._y = y
-        print(x, y)
-        Point = namedtuple('Point', 'x, y')
+        self._y = y        
         seedPoint = Point(x, y)
-        flags = 4 | 255 << 8
-        flags |= cv2.FLOODFILL_FIXED_RANGE |  cv2.FLOODFILL_MASK_ONLY # 
-        self.mask = numpy.zeros((self._ih+2, self._iw+2), dtype=uint8)
-        cv2.floodFill(self.self_img_2, self.mask, seedPoint, 0, (thresh,)*3, (thresh,)*3, flags)
-        # imwrite('mask.jpg', self.mask)
-        self._applied_mask = numpy.zeros((self._ih, self._iw, 3), dtype=uint8)
-        self._applied_mask[:, :, 0] = numpy.multiply(self.img[:, :, 0], self.mask[1:-1, 1:-1]//255)
-        self._applied_mask[:, :, 1] = numpy.multiply(self.img[:, :, 1], self.mask[1:-1, 1:-1]//255)
-        self._applied_mask[:, :, 2] = numpy.multiply(self.img[:, :, 2], self.mask[1:-1, 1:-1]//255)
-        numpy.set_printoptions(threshold=numpy.inf)
-        print(self.mask)
-        # plt.imshow(self._applied_mask)
-        # plt.show()
-        print(self._applied_mask.shape)
-        # convert numpy array to an QImage-Object
-        mask = QImage(self.mask.data, self.mask.shape[1], self.mask.shape[0], self.mask.strides[0], QImage.Format_Indexed8)
-        applied_masks = QImage(self._applied_mask.data, self._applied_mask.shape[1], self._applied_mask.shape[0], self._applied_mask.strides[0], QImage.Format_RGB888)
-        pixm = QPixmap(applied_masks)
+        # number of neighbour pixels considered | value to fill the mask
+        flags = 4 | 1 << 8
+        # compare considered points to the seed | do not change the pic itself
+        flags |= cv2.FLOODFILL_FIXED_RANGE |  cv2.FLOODFILL_MASK_ONLY
+
+        self._mask = numpy.zeros((self._ih+2, self._iw+2), dtype=uint8)
+        # changes the mask inplace
+        cv2.floodFill(self.img, self._mask, seedPoint, 0, (thresh,)*3, (thresh,)*3, flags)
+
+        self._selection = numpy.zeros((self._ih, self._iw, 3), dtype=uint8)
+        self._selection[:, :, 0] = numpy.multiply(self.img[:, :, 0], self._mask[1:-1, 1:-1])
+        self._selection[:, :, 1] = numpy.multiply(self.img[:, :, 1], self._mask[1:-1, 1:-1])
+        self._selection[:, :, 2] = numpy.multiply(self.img[:, :, 2], self._mask[1:-1, 1:-1])
+
+        applied_mask = QImage(self._selection.data, self._selection.shape[1], self._selection.shape[0], self._selection.strides[0], QImage.Format_RGB888)
+        pixm = QPixmap(applied_mask)
+
         self.lbl.setPixmap(pixm)
 
         
