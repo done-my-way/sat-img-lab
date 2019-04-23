@@ -120,7 +120,7 @@ class myGUI(QWidget):
         path = Path(self.dir_path, self.tiles_list.pop())      
         self.img = imread(path)
         qimage = QImage(self.img.data, self.img.shape[1], self.img.shape[0], self.img.strides[0], QImage.Format_RGB888)
-        print(self.img.dtype)
+        print(self.img.__dict__)
 
         pixm = QPixmap(qimage)
         self.lbl.setPixmap(pixm)
@@ -158,12 +158,14 @@ class myGUI(QWidget):
         self._selection[:, :, 1] = numpy.multiply(self.img[:, :, 1], self._mask[1:-1, 1:-1])
         self._selection[:, :, 2] = numpy.multiply(self.img[:, :, 2], self._mask[1:-1, 1:-1])
 
-        applied_mask = QImage(self._selection.data, self._selection.shape[1], self._selection.shape[0], self._selection.strides[0], QImage.Format_RGB888)
+        # contours to represent the selection
+        contours, hierarchy = cv2.findContours(self._mask[1:-1, 1:-1], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        contour = cv2.drawContours(self.img.copy(), contours, -1, (128, 128, 0), 1)
+
+        applied_mask = QImage(contour.data, contour.shape[1], contour.shape[0], contour.strides[0], QImage.Format_RGB888)
         pixm = QPixmap(applied_mask)
 
         self.lbl.setPixmap(pixm)
-
-        
 
     def mark_as(self, n):
 
