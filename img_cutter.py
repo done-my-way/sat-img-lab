@@ -11,7 +11,8 @@ from pathlib import Path
 class imgCutter:
 
     def __init__(self, path):
-        self.img = imread(path)
+        self.path = Path(path)
+        self.img = imread(self.path)
 
     def cut_image(self, width=150, height=150):
         # The resulting tile list only references the initial image.
@@ -47,9 +48,10 @@ class imgCutter:
             mkdir(dir_path)
         for i in range(self.rows):
             for j in range(self.cols):
-                imwrite(Path(dir_path,str(i)+str(j)+'.tif'), self.tiles[i][j], format='tif')
+                imwrite(Path(dir_path,str(i)+str(j)+self.path.suffix), self.tiles[i][j], format='tif')
 
 
 if __name__ == "__main__":
-    im = imgCutter('/home/lodya/Desktop/satellite/T43WEP_20170713T065011_B01.jp2')
-    im.show_image()
+    im = imgCutter('/home/lodya/Desktop/satellite/T43WEP_20170713T065011_TCI.jp2')
+    im.cut_image(256, 256)
+    im.save_tiles('/home/lodya/Desktop/DigDes/sat-img-lab/tiles_sat')

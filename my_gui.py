@@ -95,7 +95,7 @@ class myGUI(QWidget):
         self.btn_type_1.pressed.connect(lambda: self.mark_as(1))
         # btn_next opens the next image from the directory.
         self.btn_next.pressed.connect(self.clear_tile_cash)
-        self.btn_next.pressed.connect(self.open_tif_file)
+        self.btn_next.pressed.connect(self.open_file)
         # sld controls the FloodFill threshold value
         self.sld.valueChanged.connect(self.change_thresh)
 
@@ -111,7 +111,7 @@ class myGUI(QWidget):
             self.tiles_list = os.listdir(str(self.dir_path))
             self.btn_next.setVisible(True)
 
-    def open_tif_file(self):
+    def open_file(self):
 
         """ Open the next tif file from the chosen directory.
             The .tif file is opened - saved as jpg (by ) - and reopened as jpg.
@@ -119,15 +119,14 @@ class myGUI(QWidget):
 
         path = Path(self.dir_path, self.tiles_list.pop())      
         self.img = imread(path)
-        self.img = self.img.astype(uint8) #DOES THIS AFFECT THE IMAGE
-        imwrite('temp.jpg', self.img, format='jpg')
-        self.img = cv2.imread('temp.jpg')
-        pixm = QPixmap('temp.jpg')
-        self._ih = pixm.height()
-        self._iw = pixm.width()
+        qimage = QImage(self.img.data, self.img.shape[1], self.img.shape[0], self.img.strides[0], QImage.Format_RGB888)
+        print(self.img.dtype)
+
+        pixm = QPixmap(qimage)
         self.lbl.setPixmap(pixm)
 
-        os.remove('temp.jpg')
+        self._ih = pixm.height()
+        self._iw = pixm.width()
 
     def change_thresh(self, thresh):
         self.magic_wand(self._x, self._y, thresh)
@@ -139,7 +138,7 @@ class myGUI(QWidget):
     def magic_wand(self, x, y, thresh=25):
 
         """Choose a connected component and show the chosen region"""
-        
+
         # move slider to the initial position
         self.sld.setValue(thresh)
         # change seedPoint coordinates
@@ -147,10 +146,9 @@ class myGUI(QWidget):
         self._y = y        
         seedPoint = Point(x, y)
         # number of neighbour pixels considered | value to fill the mask
-        flags = 4 | 1 << 8
+        flags = 4 | (1 << 8)
         # compare considered points to the seed | do not change the pic itself
         flags |= cv2.FLOODFILL_FIXED_RANGE |  cv2.FLOODFILL_MASK_ONLY
-
         self._mask = numpy.zeros((self._ih+2, self._iw+2), dtype=uint8)
         # changes the mask inplace
         cv2.floodFill(self.img, self._mask, seedPoint, 0, (thresh,)*3, (thresh,)*3, flags)
@@ -173,7 +171,7 @@ class myGUI(QWidget):
         array associated with the opened image."""
 
         self.tile_cash.append(n)
-        print(self.tile_cash)
+        #print(self.tile_cash)
 
     def clear_tile_cash(self):
 
