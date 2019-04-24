@@ -26,6 +26,7 @@ class Canvas(QLabel):
 
     def __init__(self, parent):
         super().__init__(parent)
+        self.setWindowFlag(Qt.SubWindow)
         self.setMouseTracking(True)
         self.grip1 = QSizeGrip(self)
         self.layout = QHBoxLayout(self)
@@ -38,6 +39,12 @@ class Canvas(QLabel):
         if (e.x() <= x_max) and (e.y() <= y_max):
             self.pressed.emit(e.x(), e.y())
 
+    # def resizeEvent (self, e):
+    #     x = self.width()
+    #     y = self.height()
+    #     pixmap4 = self.pixmap().scaled(x, y, Qt.KeepAspectRatio)
+    #     self.setPixmap(pixmap4)
+    #     self.show()
 
 class myGUI(QWidget):
 
@@ -46,6 +53,11 @@ class myGUI(QWidget):
         self.initUI()
 
     def initUI(self):
+
+        self._x2_pressed = False
+
+        self._x_scale = 1
+        self._y_scale = 1
 
         self._x = 0
         self._y = 0
@@ -59,7 +71,7 @@ class myGUI(QWidget):
         self.btn_type_1 = QPushButton(self)
 
         self.btn_open.setText('Open')
-        self.btn_type_1.setText('Type: Forest')
+        self.btn_type_1.setText('x2')
         self.btn_next.setText('Next')
 
         pixm = QPixmap('plug.jpg')
@@ -98,7 +110,8 @@ class myGUI(QWidget):
         self.btn_next.pressed.connect(self.open_file)
         # sld controls the FloodFill threshold value
         self.sld.valueChanged.connect(self.change_thresh)
-
+        #
+        self.btn_type_1.pressed.connect(self.x2)
         self.show()
     
     def showDialog(self):
@@ -116,20 +129,23 @@ class myGUI(QWidget):
         """ Open the next tif file from the chosen directory.
             The .tif file is opened - saved as jpg (by ) - and reopened as jpg.
         """
-
+        self._x_scale = 1
+        self._y_scale = 1
+        self._x2_pressed = False
+        
         path = Path(self.dir_path, self.tiles_list.pop())      
         self.img = imread(path)
-        qimage = QImage(self.img.data, self.img.shape[1], self.img.shape[0], self.img.strides[0], QImage.Format_RGB888)
+        self._qimg = QImage(self.img.data, self.img.shape[1], self.img.shape[0], self.img.strides[0], QImage.Format_RGB888)
         print(self.img.__dict__)
 
-        pixm = QPixmap(qimage)
+        pixm = QPixmap(self._qimg)
         self.lbl.setPixmap(pixm)
 
         self._ih = pixm.height()
         self._iw = pixm.width()
 
     def change_thresh(self, thresh):
-        self.magic_wand(self._x, self._y, thresh)
+        self.magic_wand(self._x * self._x_scale, self._y * self._y_scale, thresh)
 
 
     def print_coordinates(self, x, y):
@@ -142,9 +158,10 @@ class myGUI(QWidget):
         # move slider to the initial position
         self.sld.setValue(thresh)
         # change seedPoint coordinates
-        self._x = x
-        self._y = y        
-        seedPoint = Point(x, y)
+        print(x, y)
+        self._x = x // self._x_scale
+        self._y = y // self._y_scale      
+        seedPoint = Point(self._x, self._y)
         # number of neighbour pixels considered | value to fill the mask
         flags = 4 | (1 << 8)
         # compare considered points to the seed | do not change the pic itself
@@ -165,7 +182,27 @@ class myGUI(QWidget):
         applied_mask = QImage(contour.data, contour.shape[1], contour.shape[0], contour.strides[0], QImage.Format_RGB888)
         pixm = QPixmap(applied_mask)
 
-        self.lbl.setPixmap(pixm)
+        self.lbl.setPixmap(pixm.scaled(self.lbl.pixmap().width(),self.lbl.pixmap().height(), Qt.KeepAspectRatio))
+
+    def x2(self):
+
+        # toggle between x2-enlarged and real-size image
+
+        pixm = self.lbl.pixmap()
+        y = self.lbl.pixmap().height()
+        x = self.lbl.pixmap().width()
+
+        if self._x2_pressed == True:
+            self.lbl.setPixmap(pixm.scaled(x // 2, y // 2, Qt.KeepAspectRatio))
+            self._x_scale = self._x_scale // 2
+            self._y_scale = self._y_scale // 2
+            self._x2_pressed = False
+        else:
+            self.lbl.setPixmap(pixm.scaled(x * 2, y * 2, Qt.KeepAspectRatio))
+            self._x_scale = self._x_scale * 2
+            self._y_scale = self._y_scale * 2
+            self._x2_pressed = True
+
 
     def mark_as(self, n):
 
