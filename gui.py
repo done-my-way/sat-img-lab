@@ -68,8 +68,14 @@ class myGUI(QWidget):
         self.btn_open = QPushButton(self)
         self.btn_scale = QPushButton(self)
 
-        self.btn_open.setText('Open')
-        self.btn_scale.setText('x2')
+        self.btn_new_mask = QPushButton(self)
+        self.btn_save_mask = QPushButton(self)
+
+        self.btn_new_mask.setText('New Mask')
+        self.btn_save_mask.setText('Save Mask')
+
+        self.btn_open.setText('Open File')
+        self.btn_scale.setText('x 2')
         self.btn_next.setText('Next')
 
         # type buttons
@@ -121,14 +127,7 @@ class myGUI(QWidget):
         self.sld.setValue(20)
         self.sld.setTickPosition(QSlider.TicksBelow)
         self.sld.setTickInterval(10)
-        
 
-        grid = QGridLayout()
-        grid.addWidget(self.lbl, 0, 0, Qt.AlignCenter)
-        grid.addWidget(self.btn_open, 0, 1, Qt.AlignTop)
-        grid.addWidget(self.btn_scale, 0, 1, Qt.AlignBottom)
-        grid.addWidget(self.btn_next, 1, 1, Qt.AlignCenter)
-        grid.addWidget(self.sld, 1, 0, Qt.AlignCenter)
         self.frm = QFrame(self)
         subgrid = QGridLayout()
         subgrid.addWidget(self.btn_type_river, 0, 0, Qt.AlignCenter)
@@ -139,7 +138,18 @@ class myGUI(QWidget):
         subgrid.addWidget(self.btn_type_cloud, 2, 1, Qt.AlignCenter)
         subgrid.addWidget(self.btn_type_shade, 3, 0, Qt.AlignCenter)
         self.frm.setLayout(subgrid)
-        grid.addWidget(self.frm, 0, 1, Qt.AlignCenter)
+        
+        grid = QGridLayout()
+        grid.addWidget(self.lbl, 0, 0, 5, 1, Qt.AlignCenter)
+        grid.addWidget(self.sld, 5, 0, Qt.AlignCenter)
+
+        grid.addWidget(self.btn_open, 0, 1, Qt.AlignVCenter)
+        grid.addWidget(self.btn_new_mask, 1, 1, Qt.AlignVCenter)
+        grid.addWidget(self.frm, 2, 1, Qt.AlignVCenter)
+        grid.addWidget(self.btn_save_mask, 3, 1, Qt.AlignVCenter)
+        grid.addWidget(self.btn_scale, 4, 1, Qt.AlignVCenter)
+        grid.addWidget(self.btn_next, 5, 1, Qt.AlignVCenter)
+        
         self.setLayout(grid)
 
         self.lbl.pressed.connect(self.magic_wand)
@@ -165,6 +175,10 @@ class myGUI(QWidget):
         self.btn_type_firebreak.pressed.connect(self.btn_checked)
         self.btn_type_cloud.pressed.connect(self.btn_checked)
         self.btn_type_shade.pressed.connect(self.btn_checked)
+        #
+        self.btn_new_mask.pressed.connect(self.create_mask_type)
+        #
+        self.btn_save_mask.pressed.connect(lambda: self.combine_masks(self._mask_type, self._mask))
         #
         self.show()
     
@@ -195,8 +209,8 @@ class myGUI(QWidget):
         pixm = QPixmap(self._qimg)
         self.lbl.setPixmap(pixm)
 
-        self._ih = pixm.height()
-        self._iw = pixm.width()
+        self._ih = pixm.height() // self._y_scale
+        self._iw = pixm.width() // self._x_scale
 
     def change_thresh(self, thresh):
         self.magic_wand(self._x * self._x_scale, self._y * self._y_scale, thresh)
@@ -229,12 +243,16 @@ class myGUI(QWidget):
         self._selection[:, :, 1] = numpy.multiply(self.img[:, :, 1], self._mask[1:-1, 1:-1])
         self._selection[:, :, 2] = numpy.multiply(self.img[:, :, 2], self._mask[1:-1, 1:-1])
 
-        # contours to represent the selection
-        contours, hierarchy = cv2.findContours(self._mask[1:-1, 1:-1], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-        contour = cv2.drawContours(self.img.copy(), contours, -1, (128, 128, 0), 1)
+        # contours to represent the type mask
+        contours_type, _ = cv2.findContours(self._mask_type[1:-1, 1:-1], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        draw_type = cv2.drawContours(self.img.copy(), contours_type, -1, (0, 128, 128), 1)
 
-        applied_mask = QImage(contour.data, contour.shape[1], contour.shape[0], contour.strides[0], QImage.Format_RGB888)
-        pixm = QPixmap(applied_mask)
+        # contours to represent the current selection
+        contours_selection, _ = cv2.findContours(self._mask[1:-1, 1:-1], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        draw_selection = cv2.drawContours(draw_type.copy(), contours_selection, -1, (128, 128, 0), 1)
+        # display both selections
+        applied_mask_1 = QImage(draw_selection.data, draw_selection.shape[1], draw_selection.shape[0], draw_selection.strides[0], QImage.Format_RGB888)
+        pixm = QPixmap(applied_mask_1)
 
         self.lbl.setPixmap(pixm.scaled(self.lbl.pixmap().width(),self.lbl.pixmap().height(), Qt.KeepAspectRatio))
 
@@ -287,13 +305,15 @@ class myGUI(QWidget):
 
     def combine_masks(self, mask_1, mask_2):
         # works in place (mask_1)
-        mask_1 = (mask_1 == 1) | (mask_2 == 1)
+        mask_1 |= (mask_1 == 1) | (mask_2 == 1)
+        plt.imshow(mask_1)
+        plt.show()
 
     def subtract_masks(self, mask_1, mask_2):
         mask_1 = (mask_1 == 1) & (mask_2 == 0)
 
-    def add_mask(self):
-        pass
+    def create_mask_type(self):
+        self._mask_type = numpy.zeros((self._ih+2, self._iw+2), dtype=uint8)
 
 
 if __name__ == "__main__":
