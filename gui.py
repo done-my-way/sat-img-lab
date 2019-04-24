@@ -1,5 +1,5 @@
 from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QPushButton,
-QHBoxLayout, QGridLayout, QAction, QFileDialog, QSlider, QSizeGrip)
+QHBoxLayout, QGridLayout, QAction, QFileDialog, QSlider, QSizeGrip, QFrame)
 from PyQt5.QtGui import QPixmap, QCursor, QImage
 from PyQt5.QtCore import pyqtSignal, Qt
 import sys
@@ -18,6 +18,8 @@ import matplotlib.pyplot as plt
 # needed to pass selected point coordinates to the cv2.floodFill()
 Point = namedtuple('Point', 'x, y')
 
+# surface types: river, lake (body of water), road, building, firebreak, cloud, cloud shade
+
 class Canvas(QLabel):
 
     """ Allows relative position tracking  within an image."""
@@ -28,9 +30,9 @@ class Canvas(QLabel):
         super().__init__(parent)
         self.setWindowFlag(Qt.SubWindow)
         self.setMouseTracking(True)
-        self.grip1 = QSizeGrip(self)
-        self.layout = QHBoxLayout(self)
-        self.layout.addWidget(self.grip1, 0, Qt.AlignRight | Qt.AlignBottom)
+        # self.grip1 = QSizeGrip(self)
+        # self.layout = QHBoxLayout(self)
+        # self.layout.addWidget(self.grip1, 0, Qt.AlignRight | Qt.AlignBottom)
 
     def mousePressEvent(self, e):
         x_max = self.width()
@@ -39,12 +41,6 @@ class Canvas(QLabel):
         if (e.x() <= x_max) and (e.y() <= y_max):
             self.pressed.emit(e.x(), e.y())
 
-    # def resizeEvent (self, e):
-    #     x = self.width()
-    #     y = self.height()
-    #     pixmap4 = self.pixmap().scaled(x, y, Qt.KeepAspectRatio)
-    #     self.setPixmap(pixmap4)
-    #     self.show()
 
 class myGUI(QWidget):
 
@@ -53,6 +49,8 @@ class myGUI(QWidget):
         self.initUI()
 
     def initUI(self):
+
+        self._toggled = False
 
         self._x2_pressed = False
 
@@ -68,11 +66,44 @@ class myGUI(QWidget):
 
         self.btn_next = QPushButton(self)
         self.btn_open = QPushButton(self)
-        self.btn_type_1 = QPushButton(self)
+        self.btn_scale = QPushButton(self)
 
         self.btn_open.setText('Open')
-        self.btn_type_1.setText('x2')
+        self.btn_scale.setText('x2')
         self.btn_next.setText('Next')
+
+        # type buttons
+        self.btn_type_river = QPushButton(self)
+        self.btn_type_lake = QPushButton(self)
+        self.btn_type_road = QPushButton(self)
+        self.btn_type_building = QPushButton(self)
+        self.btn_type_firebreak = QPushButton(self)
+        self.btn_type_cloud = QPushButton(self)
+        self.btn_type_shade = QPushButton(self)
+
+        self.type_btns = (self.btn_type_river, self.btn_type_lake,
+                        self.btn_type_road, self.btn_type_building, 
+                        self.btn_type_firebreak, self.btn_type_cloud,
+                        self.btn_type_shade)
+
+        self.btn_type_river.setText('River')
+        self.btn_type_lake.setText('Lake')
+        self.btn_type_road.setText('Road')
+        self.btn_type_building.setText('Building')
+        self.btn_type_firebreak.setText('Firebrk')
+        self.btn_type_cloud.setText('Cloud')
+        self.btn_type_shade.setText('Shade')
+
+        self.btn_type_river.setCheckable(True)
+
+        #self.btn_type_river.toggle()
+        self.btn_type_lake.setCheckable(True)
+        self.btn_type_road.setCheckable(True)
+        self.btn_type_building.setCheckable(True)
+        self.btn_type_firebreak.setCheckable(True)
+        self.btn_type_cloud.setCheckable(True)
+        self.btn_type_shade.setCheckable(True)
+
 
         pixm = QPixmap('plug.jpg')
         self.img = imread('plug.jpg')
@@ -95,23 +126,46 @@ class myGUI(QWidget):
         grid = QGridLayout()
         grid.addWidget(self.lbl, 0, 0, Qt.AlignCenter)
         grid.addWidget(self.btn_open, 0, 1, Qt.AlignTop)
-        grid.addWidget(self.btn_type_1, 0, 1, Qt.AlignBaseline)
-        grid.addWidget(self.btn_next, 0, 1, Qt.AlignBottom)
+        grid.addWidget(self.btn_scale, 0, 1, Qt.AlignBottom)
+        grid.addWidget(self.btn_next, 1, 1, Qt.AlignCenter)
         grid.addWidget(self.sld, 1, 0, Qt.AlignCenter)
+        self.frm = QFrame(self)
+        subgrid = QGridLayout()
+        subgrid.addWidget(self.btn_type_river, 0, 0, Qt.AlignCenter)
+        subgrid.addWidget(self.btn_type_lake, 0, 1, Qt.AlignCenter)
+        subgrid.addWidget(self.btn_type_road, 1, 0, Qt.AlignCenter)
+        subgrid.addWidget(self.btn_type_building, 1, 1, Qt.AlignCenter)
+        subgrid.addWidget(self.btn_type_firebreak, 2, 0, Qt.AlignCenter)
+        subgrid.addWidget(self.btn_type_cloud, 2, 1, Qt.AlignCenter)
+        subgrid.addWidget(self.btn_type_shade, 3, 0, Qt.AlignCenter)
+        self.frm.setLayout(subgrid)
+        grid.addWidget(self.frm, 0, 1, Qt.AlignCenter)
         self.setLayout(grid)
 
         self.lbl.pressed.connect(self.magic_wand)
         # btn_open opens a dialogue for selecting a directory
         # containing the images to label.
         self.btn_open.pressed.connect(self.showDialog)
-        self.btn_type_1.pressed.connect(lambda: self.mark_as(1))
+        self.btn_scale.pressed.connect(lambda: self.mark_as(1))
         # btn_next opens the next image from the directory.
         self.btn_next.pressed.connect(self.clear_tile_cash)
         self.btn_next.pressed.connect(self.open_file)
         # sld controls the FloodFill threshold value
         self.sld.valueChanged.connect(self.change_thresh)
         #
-        self.btn_type_1.pressed.connect(self.x2)
+        self.btn_scale.pressed.connect(self.x2)
+        #
+        self._save_flag = 0
+        self.btn_next.pressed.connect(self.save_mask)
+        #
+        self.btn_type_river.pressed.connect(self.btn_checked)
+        self.btn_type_lake.pressed.connect(self.btn_checked)
+        self.btn_type_road.pressed.connect(self.btn_checked)
+        self.btn_type_building.pressed.connect(self.btn_checked)
+        self.btn_type_firebreak.pressed.connect(self.btn_checked)
+        self.btn_type_cloud.pressed.connect(self.btn_checked)
+        self.btn_type_shade.pressed.connect(self.btn_checked)
+        #
         self.show()
     
     def showDialog(self):
@@ -204,6 +258,18 @@ class myGUI(QWidget):
             self._x2_pressed = True
 
 
+    def save_mask(self):
+        if self._save_flag == 0:
+            self._save_flag = 1
+        else:
+            imwrite('name.bmp', self._mask*255, format='bmp')
+            QImage(self._mask.data, self._mask.shape[1], self._mask.shape[0], self._mask.strides[0], QImage.Format_Mono).save('mask.bmp', format='bmp')
+
+    def btn_checked(self):
+        if self._toggled:
+            self._toggled.toggle()
+        self._toggled = self.sender()
+
     def mark_as(self, n):
 
         """ Add number corresponding to the surface type to an
@@ -218,6 +284,16 @@ class myGUI(QWidget):
         opened image. """
 
         self.tile_cash = []
+
+    def combine_masks(self, mask_1, mask_2):
+        # works in place (mask_1)
+        mask_1 = (mask_1 == 1) | (mask_2 == 1)
+
+    def subtract_masks(self, mask_1, mask_2):
+        mask_1 = (mask_1 == 1) & (mask_2 == 0)
+
+    def add_mask(self):
+        pass
 
 
 if __name__ == "__main__":
