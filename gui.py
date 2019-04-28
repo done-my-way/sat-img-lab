@@ -1,5 +1,6 @@
 from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QPushButton,
-QHBoxLayout, QGridLayout, QAction, QFileDialog, QSlider, QSizeGrip, QFrame)
+QHBoxLayout, QGridLayout, QAction, QFileDialog, QSlider, QSizeGrip,
+QFrame, QRadioButton, QButtonGroup, QComboBox, QInputDialog)
 from PyQt5.QtGui import QPixmap, QCursor, QImage
 from PyQt5.QtCore import pyqtSignal, Qt
 import sys
@@ -30,9 +31,6 @@ class Canvas(QLabel):
         super().__init__(parent)
         self.setWindowFlag(Qt.SubWindow)
         self.setMouseTracking(True)
-        # self.grip1 = QSizeGrip(self)
-        # self.layout = QHBoxLayout(self)
-        # self.layout.addWidget(self.grip1, 0, Qt.AlignRight | Qt.AlignBottom)
 
     def mousePressEvent(self, e):
         x_max = self.width()
@@ -50,6 +48,9 @@ class myGUI(QWidget):
 
     def initUI(self):
 
+        self._mask_type = numpy.zeros((258, 258), dtype=uint8)
+        self._mask = numpy.zeros((258, 258), dtype=uint8)
+
         self._toggled = False
 
         self._x2_pressed = False
@@ -61,61 +62,28 @@ class myGUI(QWidget):
         self._y = 0
 
         self.tile_cash = []
-        
+        # create and initialize image canvas
         self.lbl = Canvas(self)
-
-        self.btn_next = QPushButton(self)
-        self.btn_open = QPushButton(self)
-        self.btn_scale = QPushButton(self)
-
-        self.btn_new_mask = QPushButton(self)
-        self.btn_save_mask = QPushButton(self)
-
-        self.btn_new_mask.setText('New Mask')
-        self.btn_save_mask.setText('Save Mask')
-
-        self.btn_open.setText('Open File')
-        self.btn_scale.setText('x 2')
-        self.btn_next.setText('Next')
-
-        # type buttons
-        self.btn_type_river = QPushButton(self)
-        self.btn_type_lake = QPushButton(self)
-        self.btn_type_road = QPushButton(self)
-        self.btn_type_building = QPushButton(self)
-        self.btn_type_firebreak = QPushButton(self)
-        self.btn_type_cloud = QPushButton(self)
-        self.btn_type_shade = QPushButton(self)
-
-        self.type_btns = (self.btn_type_river, self.btn_type_lake,
-                        self.btn_type_road, self.btn_type_building, 
-                        self.btn_type_firebreak, self.btn_type_cloud,
-                        self.btn_type_shade)
-
-        self.btn_type_river.setText('River')
-        self.btn_type_lake.setText('Lake')
-        self.btn_type_road.setText('Road')
-        self.btn_type_building.setText('Building')
-        self.btn_type_firebreak.setText('Firebrk')
-        self.btn_type_cloud.setText('Cloud')
-        self.btn_type_shade.setText('Shade')
-
-        self.btn_type_river.setCheckable(True)
-
-        #self.btn_type_river.toggle()
-        self.btn_type_lake.setCheckable(True)
-        self.btn_type_road.setCheckable(True)
-        self.btn_type_building.setCheckable(True)
-        self.btn_type_firebreak.setCheckable(True)
-        self.btn_type_cloud.setCheckable(True)
-        self.btn_type_shade.setCheckable(True)
-
 
         pixm = QPixmap('plug.jpg')
         self.img = imread('plug.jpg')
         self.img = self.img.astype(uint8)
         self.lbl.setPixmap(pixm)
-        self.btn_next.setVisible(False)
+        #
+        self.btn_open = QPushButton('Open Directory', self)
+        self.btn_new_mask = QPushButton('New Mask', self)
+        self.btn_update_mask = QPushButton('Update Mask', self)
+        self.btn_save_mask = QPushButton('Save Mask', self)
+        self.btn_scale = QPushButton('Scale: x2', self)
+        self.btn_next = QPushButton('Next', self)
+        
+        self.btn_new_mask.setDisabled(True)
+        self.btn_update_mask.setDisabled(True)
+        self.btn_save_mask.setDisabled(True)
+        self.btn_scale.setDisabled(True)
+        self.btn_next.setDisabled(True)
+        #
+        self.lbl_type = QLabel(self)
 
         self._ih = pixm.height()
         self._iw = pixm.width()
@@ -127,28 +95,17 @@ class myGUI(QWidget):
         self.sld.setValue(20)
         self.sld.setTickPosition(QSlider.TicksBelow)
         self.sld.setTickInterval(10)
-
-        self.frm = QFrame(self)
-        subgrid = QGridLayout()
-        subgrid.addWidget(self.btn_type_river, 0, 0, Qt.AlignCenter)
-        subgrid.addWidget(self.btn_type_lake, 0, 1, Qt.AlignCenter)
-        subgrid.addWidget(self.btn_type_road, 1, 0, Qt.AlignCenter)
-        subgrid.addWidget(self.btn_type_building, 1, 1, Qt.AlignCenter)
-        subgrid.addWidget(self.btn_type_firebreak, 2, 0, Qt.AlignCenter)
-        subgrid.addWidget(self.btn_type_cloud, 2, 1, Qt.AlignCenter)
-        subgrid.addWidget(self.btn_type_shade, 3, 0, Qt.AlignCenter)
-        self.frm.setLayout(subgrid)
         
         grid = QGridLayout()
-        grid.addWidget(self.lbl, 0, 0, 5, 1, Qt.AlignCenter)
-        grid.addWidget(self.sld, 5, 0, Qt.AlignCenter)
-
+        grid.addWidget(self.lbl, 0, 0, 6, 1, Qt.AlignCenter)
+        grid.addWidget(self.sld, 6, 0, Qt.AlignCenter)
         grid.addWidget(self.btn_open, 0, 1, Qt.AlignVCenter)
         grid.addWidget(self.btn_new_mask, 1, 1, Qt.AlignVCenter)
-        grid.addWidget(self.frm, 2, 1, Qt.AlignVCenter)
-        grid.addWidget(self.btn_save_mask, 3, 1, Qt.AlignVCenter)
-        grid.addWidget(self.btn_scale, 4, 1, Qt.AlignVCenter)
-        grid.addWidget(self.btn_next, 5, 1, Qt.AlignVCenter)
+        grid.addWidget(self.lbl_type, 2, 1, Qt.AlignVCenter)
+        grid.addWidget(self.btn_update_mask, 3, 1, Qt.AlignVCenter)
+        grid.addWidget(self.btn_save_mask, 4, 1, Qt.AlignVCenter)
+        grid.addWidget(self.btn_scale, 5, 1, Qt.AlignVCenter)
+        grid.addWidget(self.btn_next, 6, 1, Qt.AlignVCenter)
         
         self.setLayout(grid)
 
@@ -156,9 +113,7 @@ class myGUI(QWidget):
         # btn_open opens a dialogue for selecting a directory
         # containing the images to label.
         self.btn_open.pressed.connect(self.showDialog)
-        self.btn_scale.pressed.connect(lambda: self.mark_as(1))
         # btn_next opens the next image from the directory.
-        self.btn_next.pressed.connect(self.clear_tile_cash)
         self.btn_next.pressed.connect(self.open_file)
         # sld controls the FloodFill threshold value
         self.sld.valueChanged.connect(self.change_thresh)
@@ -166,19 +121,13 @@ class myGUI(QWidget):
         self.btn_scale.pressed.connect(self.x2)
         #
         self._save_flag = 0
-        self.btn_next.pressed.connect(self.save_mask)
         #
-        self.btn_type_river.pressed.connect(self.btn_checked)
-        self.btn_type_lake.pressed.connect(self.btn_checked)
-        self.btn_type_road.pressed.connect(self.btn_checked)
-        self.btn_type_building.pressed.connect(self.btn_checked)
-        self.btn_type_firebreak.pressed.connect(self.btn_checked)
-        self.btn_type_cloud.pressed.connect(self.btn_checked)
-        self.btn_type_shade.pressed.connect(self.btn_checked)
-        #
+        self.btn_new_mask.pressed.connect(self.get_type)
         self.btn_new_mask.pressed.connect(self.create_mask_type)
         #
-        self.btn_save_mask.pressed.connect(lambda: self.combine_masks(self._mask_type, self._mask))
+        self.btn_update_mask.pressed.connect(lambda: self.combine_masks(self._mask_type, self._mask))
+        #
+        self.btn_save_mask.pressed.connect(self.save_mask)
         #
         self.show()
     
@@ -190,18 +139,23 @@ class myGUI(QWidget):
 
         if self.dir_path:
             self.tiles_list = os.listdir(str(self.dir_path))
-            self.btn_next.setVisible(True)
+            self.btn_next.setDisabled(False)
 
     def open_file(self):
 
         """ Open the next tif file from the chosen directory.
             The .tif file is opened - saved as jpg (by ) - and reopened as jpg.
         """
+
+        self.btn_new_mask.setDisabled(False)
+        self.btn_scale.setDisabled(False)
+
         self._x_scale = 1
         self._y_scale = 1
         self._x2_pressed = False
-        
-        path = Path(self.dir_path, self.tiles_list.pop())      
+
+        self._tile_name = self.tiles_list.pop()
+        path = Path(self.dir_path, self._tile_name)      
         self.img = imread(path)
         self._qimg = QImage(self.img.data, self.img.shape[1], self.img.shape[0], self.img.strides[0], QImage.Format_RGB888)
         print(self.img.__dict__)
@@ -215,10 +169,6 @@ class myGUI(QWidget):
     def change_thresh(self, thresh):
         self.magic_wand(self._x * self._x_scale, self._y * self._y_scale, thresh)
 
-
-    def print_coordinates(self, x, y):
-        print(x, y)
-
     def magic_wand(self, x, y, thresh=25):
 
         """Choose a connected component and show the chosen region"""
@@ -226,7 +176,6 @@ class myGUI(QWidget):
         # move slider to the initial position
         self.sld.setValue(thresh)
         # change seedPoint coordinates
-        print(x, y)
         self._x = x // self._x_scale
         self._y = y // self._y_scale      
         seedPoint = Point(self._x, self._y)
@@ -277,31 +226,10 @@ class myGUI(QWidget):
 
 
     def save_mask(self):
-        if self._save_flag == 0:
-            self._save_flag = 1
-        else:
-            imwrite('name.bmp', self._mask*255, format='bmp')
-            QImage(self._mask.data, self._mask.shape[1], self._mask.shape[0], self._mask.strides[0], QImage.Format_Mono).save('mask.bmp', format='bmp')
-
-    def btn_checked(self):
-        if self._toggled:
-            self._toggled.toggle()
-        self._toggled = self.sender()
-
-    def mark_as(self, n):
-
-        """ Add number corresponding to the surface type to an
-        array associated with the opened image."""
-
-        self.tile_cash.append(n)
-        #print(self.tile_cash)
-
-    def clear_tile_cash(self):
-
-        """ Clear the surface obsects array associated with the 
-        opened image. """
-
-        self.tile_cash = []
+        if not os.path.isdir('./masks'):
+            os.mkdir('./masks')
+        path = './masks/' + self._tile_name.split('.')[0] + '_' + self._surface_type + '.bmp'
+        imwrite(path, self._mask_type[1:-1, 1:-1]*255, format='bmp')
 
     def combine_masks(self, mask_1, mask_2):
         # works in place (mask_1)
@@ -313,7 +241,20 @@ class myGUI(QWidget):
         mask_1 = (mask_1 == 1) & (mask_2 == 0)
 
     def create_mask_type(self):
+
         self._mask_type = numpy.zeros((self._ih+2, self._iw+2), dtype=uint8)
+
+    def get_type(self):
+        items = ('river', 'lake', 'road', 'building', 'firebreak', 'cloud', 'cloud shade')
+                
+        item, ok = QInputDialog.getItem(self, "select input dialog", 
+            "surface types", items, 0, False)
+                
+        if ok and item:
+            self.btn_update_mask.setDisabled(False)
+            self.btn_save_mask.setDisabled(False)
+            self.lbl_type.setText(item)
+            self._surface_type = item
 
 
 if __name__ == "__main__":
