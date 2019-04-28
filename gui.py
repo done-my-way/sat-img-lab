@@ -73,13 +73,14 @@ class myGUI(QWidget):
         #
         self.btn_open = QPushButton('Open Directory', self)
         self.btn_new_mask = QPushButton('New Mask', self)
-        self.btn_update_mask = QPushButton('Update Mask', self)
+        self.btn_add = QPushButton('Add Selection', self)
         self.btn_save_mask = QPushButton('Save Mask', self)
         # self.btn_scale = QPushButton('Scale: x2', self)
         self.btn_next = QPushButton('Next', self)
-        
+        self.btn_subtract = QPushButton('Subtract Selection', self)
         self.btn_new_mask.setDisabled(True)
-        self.btn_update_mask.setDisabled(True)
+        self.btn_add.setDisabled(True)
+        self.btn_subtract.setDisabled(True)
         self.btn_save_mask.setDisabled(True)
         # self.btn_scale.setDisabled(True)
         self.btn_next.setDisabled(True)
@@ -106,10 +107,11 @@ class myGUI(QWidget):
         grid.addWidget(self.btn_open, 0, 2, Qt.AlignVCenter)
         grid.addWidget(self.btn_new_mask, 1, 2, Qt.AlignVCenter)
         grid.addWidget(self.cnv_img_info, 2, 2, Qt.AlignVCenter)
-        grid.addWidget(self.btn_update_mask, 3, 2, Qt.AlignVCenter)
+        grid.addWidget(self.btn_add, 3, 2, Qt.AlignVCenter)
+        grid.addWidget(self.btn_subtract, 4, 2, Qt.AlignVCenter)
         grid.addWidget(self.btn_save_mask, 4, 2, Qt.AlignVCenter)
         # grid.addWidget(self.btn_scale, 5, 2, Qt.AlignVCenter)
-        grid.addWidget(self.btn_next, 6, 2, Qt.AlignVCenter)
+        grid.addWidget(self.btn_next, 5, 2, Qt.AlignVCenter)
         
         self.setLayout(grid)
 
@@ -122,14 +124,13 @@ class myGUI(QWidget):
         # sld controls the FloodFill threshold value
         self.sld.valueChanged.connect(self.change_thresh)
         #
+        self.btn_subtract.pressed.connect(lambda: self.subtract_masks(self._mask_type, self._mask))
         # self.btn_scale.pressed.connect(self.x2)
-        #
-        self._save_flag = 0
         #
         self.btn_new_mask.pressed.connect(self.get_type)
         self.btn_new_mask.pressed.connect(self.create_mask_type)
         #
-        self.btn_update_mask.pressed.connect(lambda: self.combine_masks(self._mask_type, self._mask))
+        self.btn_add.pressed.connect(lambda: self.combine_masks(self._mask_type, self._mask))
         #
         self.btn_save_mask.pressed.connect(self.save_mask)
         #
@@ -235,7 +236,7 @@ class myGUI(QWidget):
 
     def combine_masks(self, mask_1, mask_2):
         # works in place (mask_1)
-        mask_1 |= (mask_1 == 1) | (mask_2 == 1)
+        mask_1 |= (mask_2 == 1)
 
         test = self._mask_type * 255
         type_mask = QImage(test.data, test.shape[1], test.shape[0], test.strides[0], QImage.Format_Grayscale8)
@@ -243,7 +244,13 @@ class myGUI(QWidget):
         self.cnv_msk.setPixmap(pixm_mask.scaled(self.cnv_img.pixmap().width(),self.cnv_img.pixmap().height(), Qt.KeepAspectRatio))
 
     def subtract_masks(self, mask_1, mask_2):
-        mask_1 = (mask_1 == 1) & (mask_2 == 0)
+
+        mask_1 &= (mask_2 != 1)
+
+        test = self._mask_type * 255
+        type_mask = QImage(test.data, test.shape[1], test.shape[0], test.strides[0], QImage.Format_Grayscale8)
+        pixm_mask = QPixmap(type_mask)
+        self.cnv_msk.setPixmap(pixm_mask.scaled(self.cnv_img.pixmap().width(),self.cnv_img.pixmap().height(), Qt.KeepAspectRatio))
 
     def create_mask_type(self):
 
@@ -261,7 +268,8 @@ class myGUI(QWidget):
             "surface types", items, 0, False)
                 
         if ok and item:
-            self.btn_update_mask.setDisabled(False)
+            self.btn_add.setDisabled(False)
+            self.btn_subtract.setDisabled(False)
             self.btn_save_mask.setDisabled(False)
             self.cnv_img_info.setText(item)
             self._surface_type = item
