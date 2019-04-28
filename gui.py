@@ -113,10 +113,9 @@ class myGUI(QWidget):
         grid.addWidget(self.cnv_img_info, 2, 2, 1, 2,Qt.AlignVCenter)
         grid.addWidget(self.btn_add, 3, 2, 1, 2,Qt.AlignVCenter)
         grid.addWidget(self.btn_subtract, 4, 2, 1, 2,Qt.AlignVCenter)
-        grid.addWidget(self.btn_save_mask, 4, 2, 1, 2,Qt.AlignVCenter)
-        # grid.addWidget(self.btn_scale, 5, 2, Qt.AlignVCenter)
-        grid.addWidget(self.btn_prev, 5, 2, Qt.AlignVCenter)
-        grid.addWidget(self.btn_next, 5, 3, Qt.AlignVCenter)
+        grid.addWidget(self.btn_save_mask, 5, 2, 1, 2,Qt.AlignVCenter)
+        grid.addWidget(self.btn_prev, 6, 2, Qt.AlignVCenter)
+        grid.addWidget(self.btn_next, 6, 3, Qt.AlignVCenter)
 
         
         self.setLayout(grid)
@@ -164,13 +163,11 @@ class myGUI(QWidget):
         self._wand_enabled = False
 
         self.tile_info = {'file': '', 'layer': '', }
-        self._mask_type = numpy.zeros((self._ih+2, self._iw+2), dtype=uint8)
+        self.create_mask_type()
 
         self.btn_new_mask.setDisabled(False)
         self.btn_add.setDisabled(True)
-        self.btn_subtract.setDisabled(True)
-        # self.btn_scale.setDisabled(False)
-        
+        self.btn_subtract.setDisabled(True)        
 
         self._x_scale = 2
         self._y_scale = 2
@@ -204,6 +201,8 @@ class myGUI(QWidget):
 
         """Choose a connected component and show the chosen region"""
 
+        # enable the magic wand tool only if a surface type for the mask is selected
+
         if self._wand_enabled == False:
             return None
 
@@ -220,23 +219,16 @@ class myGUI(QWidget):
         self._mask = numpy.zeros((self._ih+2, self._iw+2), dtype=uint8)
         # changes the mask inplace
         cv2.floodFill(self.img, self._mask, seedPoint, 0, (thresh,)*3, (thresh,)*3, flags)
-
         # contours to represent the type mask
         contours_type, _ = cv2.findContours(self._mask_type[1:-1, 1:-1], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         draw_type = cv2.drawContours(self.img.copy(), contours_type, -1, (0, 128, 128), 1)
-
         # contours to represent the current selection
         contours_selection, _ = cv2.findContours(self._mask[1:-1, 1:-1], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         draw_selection = cv2.drawContours(draw_type.copy(), contours_selection, -1, (128, 128, 0), 1)
         # display both selections
         applied_mask_1 = QImage(draw_selection.data, draw_selection.shape[1], draw_selection.shape[0], draw_selection.strides[0], QImage.Format_RGB888)
         pixm = QPixmap(applied_mask_1)
-
         self.cnv_img.setPixmap(pixm.scaled(self.cnv_img.pixmap().width(),self.cnv_img.pixmap().height(), Qt.KeepAspectRatio))
-        test = self._mask_type * 255
-        type_mask = QImage(test.data, test.shape[1], test.shape[0], test.strides[0], QImage.Format_Grayscale8)
-        pixm_mask = QPixmap(type_mask)
-        self.cnv_msk.setPixmap(pixm_mask.scaled(self.cnv_img.pixmap().width(),self.cnv_img.pixmap().height(), Qt.KeepAspectRatio))
 
     def x2(self):
 
@@ -267,24 +259,19 @@ class myGUI(QWidget):
     def combine_masks(self, mask_1, mask_2):
         # works in place (mask_1)
         mask_1 |= (mask_2 == 1)
-
-        test = self._mask_type * 255
-        type_mask = QImage(test.data, test.shape[1], test.shape[0], test.strides[0], QImage.Format_Grayscale8)
-        pixm_mask = QPixmap(type_mask)
-        self.cnv_msk.setPixmap(pixm_mask.scaled(self.cnv_img.pixmap().width(),self.cnv_img.pixmap().height(), Qt.KeepAspectRatio))
+        self.show_type_mask()
 
     def subtract_masks(self, mask_1, mask_2):
 
         mask_1 &= (mask_2 != 1)
-
-        test = self._mask_type * 255
-        type_mask = QImage(test.data, test.shape[1], test.shape[0], test.strides[0], QImage.Format_Grayscale8)
-        pixm_mask = QPixmap(type_mask)
-        self.cnv_msk.setPixmap(pixm_mask.scaled(self.cnv_img.pixmap().width(),self.cnv_img.pixmap().height(), Qt.KeepAspectRatio))
+        self.show_type_mask()
 
     def create_mask_type(self):
 
         self._mask_type = numpy.zeros((self._ih+2, self._iw+2), dtype=uint8)
+        self.show_type_mask()
+
+    def show_type_mask(self):
 
         test = self._mask_type * 255
         type_mask = QImage(test.data, test.shape[1], test.shape[0], test.strides[0], QImage.Format_Grayscale8)
