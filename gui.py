@@ -19,8 +19,6 @@ import matplotlib.pyplot as plt
 # needed to pass selected point coordinates to the cv2.floodFill()
 Point = namedtuple('Point', 'x, y')
 
-# surface types: river, lake (body of water), road, building, firebreak, cloud, cloud shade
-
 class Canvas(QLabel):
 
     """ Allows relative position tracking  within an image."""
@@ -55,35 +53,38 @@ class myGUI(QWidget):
 
         self._x2_pressed = False
 
-        self._x_scale = 1
-        self._y_scale = 1
+        self._x_scale = 2
+        self._y_scale = 2
 
         self._x = 0
         self._y = 0
 
         self.tile_cash = []
         # create and initialize image canvas
-        self.lbl = Canvas(self)
+        self.cnv_img = Canvas(self)
 
         pixm = QPixmap('plug.jpg')
         self.img = imread('plug.jpg')
         self.img = self.img.astype(uint8)
-        self.lbl.setPixmap(pixm)
+        self.cnv_img.setPixmap(pixm)
+        #
+        self.cnv_msk = Canvas(self)
+        self.cnv_msk.setPixmap(pixm)
         #
         self.btn_open = QPushButton('Open Directory', self)
         self.btn_new_mask = QPushButton('New Mask', self)
         self.btn_update_mask = QPushButton('Update Mask', self)
         self.btn_save_mask = QPushButton('Save Mask', self)
-        self.btn_scale = QPushButton('Scale: x2', self)
+        # self.btn_scale = QPushButton('Scale: x2', self)
         self.btn_next = QPushButton('Next', self)
         
         self.btn_new_mask.setDisabled(True)
         self.btn_update_mask.setDisabled(True)
         self.btn_save_mask.setDisabled(True)
-        self.btn_scale.setDisabled(True)
+        # self.btn_scale.setDisabled(True)
         self.btn_next.setDisabled(True)
         #
-        self.lbl_type = QLabel(self)
+        self.cnv_img_info = QLabel(self)
 
         self._ih = pixm.height()
         self._iw = pixm.width()
@@ -97,19 +98,22 @@ class myGUI(QWidget):
         self.sld.setTickInterval(10)
         
         grid = QGridLayout()
-        grid.addWidget(self.lbl, 0, 0, 6, 1, Qt.AlignCenter)
+        grid.addWidget(self.cnv_img, 0, 0, 6, 1, Qt.AlignCenter)
         grid.addWidget(self.sld, 6, 0, Qt.AlignCenter)
-        grid.addWidget(self.btn_open, 0, 1, Qt.AlignVCenter)
-        grid.addWidget(self.btn_new_mask, 1, 1, Qt.AlignVCenter)
-        grid.addWidget(self.lbl_type, 2, 1, Qt.AlignVCenter)
-        grid.addWidget(self.btn_update_mask, 3, 1, Qt.AlignVCenter)
-        grid.addWidget(self.btn_save_mask, 4, 1, Qt.AlignVCenter)
-        grid.addWidget(self.btn_scale, 5, 1, Qt.AlignVCenter)
-        grid.addWidget(self.btn_next, 6, 1, Qt.AlignVCenter)
+
+        grid.addWidget(self.cnv_msk, 0, 1, 6, 1, Qt.AlignCenter)
+
+        grid.addWidget(self.btn_open, 0, 2, Qt.AlignVCenter)
+        grid.addWidget(self.btn_new_mask, 1, 2, Qt.AlignVCenter)
+        grid.addWidget(self.cnv_img_info, 2, 2, Qt.AlignVCenter)
+        grid.addWidget(self.btn_update_mask, 3, 2, Qt.AlignVCenter)
+        grid.addWidget(self.btn_save_mask, 4, 2, Qt.AlignVCenter)
+        # grid.addWidget(self.btn_scale, 5, 2, Qt.AlignVCenter)
+        grid.addWidget(self.btn_next, 6, 2, Qt.AlignVCenter)
         
         self.setLayout(grid)
 
-        self.lbl.pressed.connect(self.magic_wand)
+        self.cnv_img.pressed.connect(self.magic_wand)
         # btn_open opens a dialogue for selecting a directory
         # containing the images to label.
         self.btn_open.pressed.connect(self.showDialog)
@@ -118,7 +122,7 @@ class myGUI(QWidget):
         # sld controls the FloodFill threshold value
         self.sld.valueChanged.connect(self.change_thresh)
         #
-        self.btn_scale.pressed.connect(self.x2)
+        # self.btn_scale.pressed.connect(self.x2)
         #
         self._save_flag = 0
         #
@@ -148,23 +152,22 @@ class myGUI(QWidget):
         """
 
         self.btn_new_mask.setDisabled(False)
-        self.btn_scale.setDisabled(False)
+        # self.btn_scale.setDisabled(False)
 
-        self._x_scale = 1
-        self._y_scale = 1
+        self._x_scale = 2
+        self._y_scale = 2
         self._x2_pressed = False
 
         self._tile_name = self.tiles_list.pop()
         path = Path(self.dir_path, self._tile_name)      
         self.img = imread(path)
         self._qimg = QImage(self.img.data, self.img.shape[1], self.img.shape[0], self.img.strides[0], QImage.Format_RGB888)
-        print(self.img.__dict__)
 
         pixm = QPixmap(self._qimg)
-        self.lbl.setPixmap(pixm)
+        self.cnv_img.setPixmap(pixm.scaled(self.img.shape[1] * self._x_scale, self.img.shape[0]*self._y_scale, Qt.KeepAspectRatio))
 
-        self._ih = pixm.height() // self._y_scale
-        self._iw = pixm.width() // self._x_scale
+        self._ih = pixm.height()
+        self._iw = pixm.width()
 
     def change_thresh(self, thresh):
         self.magic_wand(self._x * self._x_scale, self._y * self._y_scale, thresh)
@@ -187,11 +190,6 @@ class myGUI(QWidget):
         # changes the mask inplace
         cv2.floodFill(self.img, self._mask, seedPoint, 0, (thresh,)*3, (thresh,)*3, flags)
 
-        self._selection = numpy.zeros((self._ih, self._iw, 3), dtype=uint8)
-        self._selection[:, :, 0] = numpy.multiply(self.img[:, :, 0], self._mask[1:-1, 1:-1])
-        self._selection[:, :, 1] = numpy.multiply(self.img[:, :, 1], self._mask[1:-1, 1:-1])
-        self._selection[:, :, 2] = numpy.multiply(self.img[:, :, 2], self._mask[1:-1, 1:-1])
-
         # contours to represent the type mask
         contours_type, _ = cv2.findContours(self._mask_type[1:-1, 1:-1], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         draw_type = cv2.drawContours(self.img.copy(), contours_type, -1, (0, 128, 128), 1)
@@ -203,23 +201,27 @@ class myGUI(QWidget):
         applied_mask_1 = QImage(draw_selection.data, draw_selection.shape[1], draw_selection.shape[0], draw_selection.strides[0], QImage.Format_RGB888)
         pixm = QPixmap(applied_mask_1)
 
-        self.lbl.setPixmap(pixm.scaled(self.lbl.pixmap().width(),self.lbl.pixmap().height(), Qt.KeepAspectRatio))
+        self.cnv_img.setPixmap(pixm.scaled(self.cnv_img.pixmap().width(),self.cnv_img.pixmap().height(), Qt.KeepAspectRatio))
+        test = self._mask_type * 255
+        type_mask = QImage(test.data, test.shape[1], test.shape[0], test.strides[0], QImage.Format_Grayscale8)
+        pixm_mask = QPixmap(type_mask)
+        self.cnv_msk.setPixmap(pixm_mask.scaled(self.cnv_img.pixmap().width(),self.cnv_img.pixmap().height(), Qt.KeepAspectRatio))
 
     def x2(self):
 
         # toggle between x2-enlarged and real-size image
 
-        pixm = self.lbl.pixmap()
-        y = self.lbl.pixmap().height()
-        x = self.lbl.pixmap().width()
+        pixm = self.cnv_img.pixmap()
+        y = self.cnv_img.pixmap().height()
+        x = self.cnv_img.pixmap().width()
 
         if self._x2_pressed == True:
-            self.lbl.setPixmap(pixm.scaled(x // 2, y // 2, Qt.KeepAspectRatio))
+            self.cnv_img.setPixmap(pixm.scaled(x // 2, y // 2, Qt.KeepAspectRatio))
             self._x_scale = self._x_scale // 2
             self._y_scale = self._y_scale // 2
             self._x2_pressed = False
         else:
-            self.lbl.setPixmap(pixm.scaled(x * 2, y * 2, Qt.KeepAspectRatio))
+            self.cnv_img.setPixmap(pixm.scaled(x * 2, y * 2, Qt.KeepAspectRatio))
             self._x_scale = self._x_scale * 2
             self._y_scale = self._y_scale * 2
             self._x2_pressed = True
@@ -234,8 +236,11 @@ class myGUI(QWidget):
     def combine_masks(self, mask_1, mask_2):
         # works in place (mask_1)
         mask_1 |= (mask_1 == 1) | (mask_2 == 1)
-        plt.imshow(mask_1)
-        plt.show()
+
+        test = self._mask_type * 255
+        type_mask = QImage(test.data, test.shape[1], test.shape[0], test.strides[0], QImage.Format_Grayscale8)
+        pixm_mask = QPixmap(type_mask)
+        self.cnv_msk.setPixmap(pixm_mask.scaled(self.cnv_img.pixmap().width(),self.cnv_img.pixmap().height(), Qt.KeepAspectRatio))
 
     def subtract_masks(self, mask_1, mask_2):
         mask_1 = (mask_1 == 1) & (mask_2 == 0)
@@ -243,6 +248,11 @@ class myGUI(QWidget):
     def create_mask_type(self):
 
         self._mask_type = numpy.zeros((self._ih+2, self._iw+2), dtype=uint8)
+
+        test = self._mask_type * 255
+        type_mask = QImage(test.data, test.shape[1], test.shape[0], test.strides[0], QImage.Format_Grayscale8)
+        pixm_mask = QPixmap(type_mask)
+        self.cnv_msk.setPixmap(pixm_mask.scaled(self.cnv_img.pixmap().width(),self.cnv_img.pixmap().height(), Qt.KeepAspectRatio))
 
     def get_type(self):
         items = ('river', 'lake', 'road', 'building', 'firebreak', 'cloud', 'cloud shade')
@@ -253,7 +263,7 @@ class myGUI(QWidget):
         if ok and item:
             self.btn_update_mask.setDisabled(False)
             self.btn_save_mask.setDisabled(False)
-            self.lbl_type.setText(item)
+            self.cnv_img_info.setText(item)
             self._surface_type = item
 
 
