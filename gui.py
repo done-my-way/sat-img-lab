@@ -46,6 +46,8 @@ class myGUI(QWidget):
 
     def initUI(self):
 
+        self._wand_enabled = False
+
         self._mask_type = numpy.zeros((258, 258), dtype=uint8)
         self._mask = numpy.zeros((258, 258), dtype=uint8)
 
@@ -152,14 +154,24 @@ class myGUI(QWidget):
             The .tif file is opened - saved as jpg (by ) - and reopened as jpg.
         """
 
+        self._wand_enabled = False
+
+        self.tile_info = {'file': '', 'layer': '', }
+        self._mask_type = numpy.zeros((self._ih+2, self._iw+2), dtype=uint8)
+
         self.btn_new_mask.setDisabled(False)
+        self.btn_add.setDisabled(True)
+        self.btn_subtract.setDisabled(True)
         # self.btn_scale.setDisabled(False)
+        
 
         self._x_scale = 2
         self._y_scale = 2
         self._x2_pressed = False
 
         self._tile_name = self.tiles_list.pop()
+        self.tile_info['file']  = self._tile_name
+        self.cnv_img_info.setText('\n'.join([': '.join(i) for i in self.tile_info.items()]))
         path = Path(self.dir_path, self._tile_name)      
         self.img = imread(path)
         self._qimg = QImage(self.img.data, self.img.shape[1], self.img.shape[0], self.img.strides[0], QImage.Format_RGB888)
@@ -176,6 +188,9 @@ class myGUI(QWidget):
     def magic_wand(self, x, y, thresh=25):
 
         """Choose a connected component and show the chosen region"""
+
+        if self._wand_enabled == False:
+            return None
 
         # move slider to the initial position
         self.sld.setValue(thresh)
@@ -271,8 +286,10 @@ class myGUI(QWidget):
             self.btn_add.setDisabled(False)
             self.btn_subtract.setDisabled(False)
             self.btn_save_mask.setDisabled(False)
-            self.cnv_img_info.setText(item)
+            self.tile_info['layer'] = item
+            self.cnv_img_info.setText('\n'.join([': '.join(i) for i in self.tile_info.items()]))
             self._surface_type = item
+            self._wand_enabled = True
 
 
 if __name__ == "__main__":
