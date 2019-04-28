@@ -79,6 +79,7 @@ class myGUI(QWidget):
         self.btn_save_mask = QPushButton('Save Mask', self)
         # self.btn_scale = QPushButton('Scale: x2', self)
         self.btn_next = QPushButton('Next', self)
+        self.btn_prev = QPushButton('Previuos', self)
         self.btn_subtract = QPushButton('Subtract Selection', self)
         self.btn_new_mask.setDisabled(True)
         self.btn_add.setDisabled(True)
@@ -86,6 +87,7 @@ class myGUI(QWidget):
         self.btn_save_mask.setDisabled(True)
         # self.btn_scale.setDisabled(True)
         self.btn_next.setDisabled(True)
+        self.btn_prev.setDisabled(True)
         #
         self.cnv_img_info = QLabel(self)
 
@@ -106,14 +108,16 @@ class myGUI(QWidget):
 
         grid.addWidget(self.cnv_msk, 0, 1, 6, 1, Qt.AlignCenter)
 
-        grid.addWidget(self.btn_open, 0, 2, Qt.AlignVCenter)
-        grid.addWidget(self.btn_new_mask, 1, 2, Qt.AlignVCenter)
-        grid.addWidget(self.cnv_img_info, 2, 2, Qt.AlignVCenter)
-        grid.addWidget(self.btn_add, 3, 2, Qt.AlignVCenter)
-        grid.addWidget(self.btn_subtract, 4, 2, Qt.AlignVCenter)
-        grid.addWidget(self.btn_save_mask, 4, 2, Qt.AlignVCenter)
+        grid.addWidget(self.btn_open, 0, 2, 1, 2, Qt.AlignVCenter)
+        grid.addWidget(self.btn_new_mask, 1, 2, 1, 2,Qt.AlignVCenter)
+        grid.addWidget(self.cnv_img_info, 2, 2, 1, 2,Qt.AlignVCenter)
+        grid.addWidget(self.btn_add, 3, 2, 1, 2,Qt.AlignVCenter)
+        grid.addWidget(self.btn_subtract, 4, 2, 1, 2,Qt.AlignVCenter)
+        grid.addWidget(self.btn_save_mask, 4, 2, 1, 2,Qt.AlignVCenter)
         # grid.addWidget(self.btn_scale, 5, 2, Qt.AlignVCenter)
-        grid.addWidget(self.btn_next, 5, 2, Qt.AlignVCenter)
+        grid.addWidget(self.btn_prev, 5, 2, Qt.AlignVCenter)
+        grid.addWidget(self.btn_next, 5, 3, Qt.AlignVCenter)
+
         
         self.setLayout(grid)
 
@@ -122,7 +126,8 @@ class myGUI(QWidget):
         # containing the images to label.
         self.btn_open.pressed.connect(self.showDialog)
         # btn_next opens the next image from the directory.
-        self.btn_next.pressed.connect(self.open_file)
+        self.btn_next.pressed.connect(self.open_next_file)
+        self.btn_prev.pressed.connect(self.open_previous_file)
         # sld controls the FloodFill threshold value
         self.sld.valueChanged.connect(self.change_thresh)
         #
@@ -146,14 +151,16 @@ class myGUI(QWidget):
 
         if self.dir_path:
             self.tiles_list = os.listdir(str(self.dir_path))
+            self.btn_prev.setDisabled(False)
             self.btn_next.setDisabled(False)
+            self._tile_number = 0
+
 
     def open_file(self):
 
         """ Open the next tif file from the chosen directory.
             The .tif file is opened - saved as jpg (by ) - and reopened as jpg.
         """
-
         self._wand_enabled = False
 
         self.tile_info = {'file': '', 'layer': '', }
@@ -169,7 +176,7 @@ class myGUI(QWidget):
         self._y_scale = 2
         self._x2_pressed = False
 
-        self._tile_name = self.tiles_list.pop()
+        self._tile_name = self.tiles_list[self._tile_number]
         self.tile_info['file']  = self._tile_name
         self.cnv_img_info.setText('\n'.join([': '.join(i) for i in self.tile_info.items()]))
         path = Path(self.dir_path, self._tile_name)      
@@ -181,6 +188,14 @@ class myGUI(QWidget):
 
         self._ih = pixm.height()
         self._iw = pixm.width()
+
+    def open_previous_file(self):
+        self._tile_number -= 1
+        self.open_file()
+
+    def open_next_file(self):
+        self._tile_number += 1
+        self.open_file()
 
     def change_thresh(self, thresh):
         self.magic_wand(self._x * self._x_scale, self._y * self._y_scale, thresh)
