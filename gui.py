@@ -279,7 +279,7 @@ class myGUI(QWidget):
         self.cnv_msk.setPixmap(pixm_mask.scaled(self.cnv_img.pixmap().width(),self.cnv_img.pixmap().height(), Qt.KeepAspectRatio))
 
     def get_type(self):
-        items = ('river', 'lake', 'road', 'building', 'firebreak', 'cloud', 'cloud shade')
+        items = ('river', 'lake', 'road', 'building', 'firebreak', 'cloud', 'cloud shadow')
                 
         item, ok = QInputDialog.getItem(self, "select input dialog", 
             "surface types", items, 0, False)
