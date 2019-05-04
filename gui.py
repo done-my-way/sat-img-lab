@@ -67,7 +67,7 @@ class myGUI(QWidget):
 
         pixm = QPixmap('plug.jpg')
         self.img = imread('plug.jpg')
-        self.img = self.img.astype(uint8)
+        #self.img = self.img.astype(uint8)
         self.cnv_img.setPixmap(pixm)
         #
         self.cnv_msk = Canvas(self)
@@ -178,6 +178,7 @@ class myGUI(QWidget):
         self.cnv_img_info.setText('\n'.join([': '.join(i) for i in self.tile_info.items()]))
         path = Path(self.dir_path, self._tile_name)      
         self.img = imread(path)
+        print(self.img.shape)
         self._qimg = QImage(self.img.data, self.img.shape[1], self.img.shape[0], self.img.strides[0], QImage.Format_RGB888)
 
         pixm = QPixmap(self._qimg)
