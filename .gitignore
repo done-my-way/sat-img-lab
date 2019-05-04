@@ -3,3 +3,4 @@ test
 tiles_sat
 cv2.FLOODFILL_FIXED_RANGE
 masks
+bands
