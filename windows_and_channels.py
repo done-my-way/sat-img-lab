@@ -7,7 +7,7 @@ import numpy as np
 from pathlib import Path
 
 
-def open_image(dirpath):
+def get_size_info(dirpath):
     # the directory should only contain image files
     # the files should be named uniformely according to the bands they represent
     # B01.jp2, B02.jp2 ...
@@ -54,7 +54,7 @@ def open_chosen_bands(dirpath, chosen_bands, size, position):
             w.append(src.meta['width'])
             h.append(src.meta['height'])
     # TODO: check image limits
-    size_coefs = [(ww//min(w), hh//min(h)) for ww, hh in zip(w, h)]
+    size_coefs = [(max(w)//ww, max(h)//hh) for ww, hh in zip(w, h)]
     #
     tile_layers = []
     for i in range(len(chosen_bands)):
@@ -63,13 +63,13 @@ def open_chosen_bands(dirpath, chosen_bands, size, position):
             # the lowest resolution (among the chosen), thus the bands
             # with higher resolutoins have proportionally bigger tiles.
             img = src.read(1, window=windows.Window(\
-                position[0] * size_coefs[i][0], 
-                position[1] * size_coefs[i][1], 
-                size[0] * size_coefs[i][0], size[1] * size_coefs[i][1]))
+                position[0] // size_coefs[i][0], 
+                position[1] // size_coefs[i][1], 
+                size[0] // size_coefs[i][0], size[1] // size_coefs[i][1]))
         tile_layers.append(img)
     return tile_layers
 
-def assemble_multi_channel(tile_layers):
+def stack_three_channels(tile_layers):
     # resize tiles to the size of the biggest tile
     size = max([im.shape[0] for im in tile_layers])
     tile_layers = [cv2.resize(im, (size, size)) for im in tile_layers]
@@ -82,14 +82,64 @@ def assemble_multi_channel(tile_layers):
     new_img[:,:,0] = tile_layers[:, 2*a:3*a]
     return new_img
 
+def NBR(tile_layers):
+    # TODO: correctly handle negative values
+    size = max([im.shape[0] for im in tile_layers])
+    tile_layers = [cv2.resize(im, (size, size)) for im in tile_layers]
+    div1 = (tile_layers[0] - tile_layers[1])
+    div2 = (tile_layers[0] + tile_layers[1])
+    res = np.divide(div1, div2)
+    print(np.any(res < 0))
+    return res
+
 def to_uint8_rgb(image):
     # represent as uint8 RGB
     m = np.amax(image)
     image = image / m * 255
     image = image.astype(np.uint8)
     # show RGB-img
-    plt.imshow(image)
-    plt.show()
+    # plt.imshow(image)
+    # plt.show()
+    return image
+
+def equlalize_hist(image):
+
+    print(image.shape)
+
+    if len(image.shape) == 3:
+        # m = image.max()
+        color = ('b','g','r')
+        for channel in range(3):
+            # ma = image[:,:,channel].max()
+            # mi = image[:,:,channel].min() # * 0.5
+            # image[:,:,channel] = (image[:,:,channel] - mi) * 255 / (ma - mi)
+            image[:,:,channel] = clip_hist(image[:,:,channel])
+        image = image.astype(np.uint8)
+        # for i,col in enumerate(color):
+        #     histr = cv2.calcHist([image],[i],None,[256],[0,256])
+        #     plt.plot(histr,color = col)
+        #     plt.xlim([0,256])
+        # plt.show()        
+    elif len(image.shape) == 2:
+        image = clip_hist(image)
+        # image = (image - image.min())*255/(image.max() - image.min())
+        # image = np.ma.filled(image,0).astype('uint8')
+        # histr = cv2.calcHist([image],[0],None,[256],[0,256])
+        # plt.plot(histr)
+        # plt.xlim([0,256])
+        # plt.show() 
+    else:
+        return None
+        # raise TypeError('The image has a weird number of channels, not 3 or 1')
+    
+    return image
+
+def clip_hist(image, percent=(0, 0)):
+    borders = np.percentile(image, (percent[0], 100 - percent[1]))
+    print(borders)
+    image = (image - borders[0])*255/(borders[1] - borders[0])
+    image = np.ma.filled(image,0).astype('uint8')
+    return image
 
 if __name__ == "__main__":
 
@@ -97,7 +147,7 @@ if __name__ == "__main__":
 
     tile_layers = open_chosen_bands(dirpath, (1, 2, 3), (256, 256), (500, 500))
 
-    # bands, sizes = open_image(dirpath)
+    # bands, sizes = get_size_info(dirpath)
 
     
     # tile_layers = open_tile((1, 2, 3), bands, sizes, (256, 256), (500, 500))
