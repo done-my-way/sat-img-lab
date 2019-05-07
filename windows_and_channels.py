@@ -80,6 +80,7 @@ def stack_three_channels(tile_layers):
     new_img[:,:,2] = tile_layers[:,0:a]
     new_img[:,:,1] = tile_layers[:,a:2*a]
     new_img[:,:,0] = tile_layers[:, 2*a:3*a]
+    print(new_img.dtype)
     return new_img
 
 def NBR(tile_layers):
@@ -92,54 +93,56 @@ def NBR(tile_layers):
     print(np.any(res < 0))
     return res
 
-def to_uint8_rgb(image):
-    # represent as uint8 RGB
-    m = np.amax(image)
-    image = image / m * 255
-    image = image.astype(np.uint8)
-    # show RGB-img
-    # plt.imshow(image)
-    # plt.show()
-    return image
+def to_uint8(input_image):
 
-def equlalize_hist(image):
+    output_image = input_image.copy()
 
-    print(image.shape)
+    if len(output_image.shape) == 3:
+        for channel in range(3):
+            output_image[:,:,channel] = clip_hist(output_image[:,:,channel], (0, 0))      
+    elif len(output_image.shape) == 2:
+        output_image = clip_hist(output_image, (0, 0))
+    output_image = output_image.astype(np.uint8)
+    
+    return output_image
 
-    if len(image.shape) == 3:
+def equlalize_hist(input_image):
+
+    output_image = input_image.copy()
+
+    if len(output_image.shape) == 3:
         # m = image.max()
-        color = ('b','g','r')
+        # color = ('b','g','r')
         for channel in range(3):
             # ma = image[:,:,channel].max()
             # mi = image[:,:,channel].min() # * 0.5
             # image[:,:,channel] = (image[:,:,channel] - mi) * 255 / (ma - mi)
-            image[:,:,channel] = clip_hist(image[:,:,channel])
-        image = image.astype(np.uint8)
+            output_image[:,:,channel] = clip_hist(output_image[:,:,channel])
+        
         # for i,col in enumerate(color):
         #     histr = cv2.calcHist([image],[i],None,[256],[0,256])
         #     plt.plot(histr,color = col)
         #     plt.xlim([0,256])
         # plt.show()        
-    elif len(image.shape) == 2:
-        image = clip_hist(image)
+    elif len(output_image.shape) == 2:
+        output_image = clip_hist(output_image)
         # image = (image - image.min())*255/(image.max() - image.min())
         # image = np.ma.filled(image,0).astype('uint8')
         # histr = cv2.calcHist([image],[0],None,[256],[0,256])
         # plt.plot(histr)
         # plt.xlim([0,256])
-        # plt.show() 
-    else:
-        return None
-        # raise TypeError('The image has a weird number of channels, not 3 or 1')
+        # plt.show()
+    output_image = output_image.astype(np.uint8)
     
-    return image
+    return output_image
 
 def clip_hist(image, percent=(0, 0)):
     borders = np.percentile(image, (percent[0], 100 - percent[1]))
     print(borders)
     image = (image - borders[0])*255/(borders[1] - borders[0])
-    image = np.ma.filled(image,0).astype('uint8')
+    # image = np.ma.filled(image,0).astype('uint8')
     return image
+
 
 if __name__ == "__main__":
 

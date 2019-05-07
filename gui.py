@@ -1,22 +1,23 @@
-from PyQt5.QtWidgets import (QApplication, QWidget, QLabel, QPushButton,
-QHBoxLayout, QGridLayout, QAction, QFileDialog, QSlider, QSizeGrip,
-QFrame, QRadioButton, QButtonGroup, QComboBox, QInputDialog)
-from PyQt5.QtGui import QPixmap, QCursor, QImage
-from PyQt5.QtCore import pyqtSignal, Qt
-import sys
 import os
-from imageio import imread, imwrite
+import sys
 import tempfile
-from numpy import uint8, ones
 from collections import namedtuple
-
 from pathlib import Path
 
 import cv2
-import numpy 
 import matplotlib.pyplot as plt
+import numpy
+from imageio import imread, imwrite
+from numpy import ones, uint8
+from PyQt5.QtCore import Qt, pyqtSignal
+from PyQt5.QtGui import QCursor, QImage, QPixmap
+from PyQt5.QtWidgets import (QAction, QApplication, QButtonGroup, QComboBox,
+                             QFileDialog, QFrame, QGridLayout, QHBoxLayout,
+                             QInputDialog, QLabel, QPushButton, QRadioButton,
+                             QSizeGrip, QSlider, QWidget)
 
 from windows_and_channels import *
+
 # needed to pass selected point coordinates to the cv2.floodFill()
 Point = namedtuple('Point', 'x, y')
 
@@ -174,6 +175,8 @@ class myGUI(QWidget):
             self._three_channels = False
             # self._funct = lambda x: numpy.division((x[0] - x [1]), (x[0] + x [1]))
         self.open_file()
+        self.draw_contours()
+
     
     def showDialog(self):
 
@@ -182,19 +185,7 @@ class myGUI(QWidget):
         self.dir_path = QFileDialog.getExistingDirectoryUrl(self).path()
 
         if self.dir_path:
-            # self.tiles_list = os.listdir(str(self.dir_path))
-            self.btn_prev.setDisabled(False)
-            self.btn_next.setDisabled(False)
-            # self._tile_number = 0
-            _, sizes = get_size_info(self.dir_path)
-            self._max_band_width = max(sizes, key=lambda x: x[0])[0]
-            self._max_band_height = max(sizes, key=lambda x: x[1])[1]
-            self._x_position = 0
-            self._y_position = 0
-            self._mode = (1, 2, 3)
-            self._three_channels = True
-            # self._funct = lambda x: x
-            print(self._max_band_width, self._max_band_height)
+            self.state_start()
 
 
     def open_file(self):
@@ -202,48 +193,40 @@ class myGUI(QWidget):
         """ Open the next tif file from the chosen directory.
             The .tif file is opened - saved as jpg (by ) - and reopened as jpg.
         """
-        self._wand_enabled = False
 
-        self.tile_info = {'file': '', 'layer': '', }
-        self.create_mask_type()
-
-        self.btn_new_mask.setDisabled(False)
-        self.btn_add.setDisabled(True)
-        self.btn_subtract.setDisabled(True)        
-
-        self._x_scale = 2
-        self._y_scale = 2
-        self._x2_pressed = False
-
-        # self._tile_name = self.tiles_list[self._tile_number]
-        self.tile_info['file']  = 'plug'
         self.cnv_img_info.setText('\n'.join([': '.join(i) for i in self.tile_info.items()]))
 
         tile_layers = open_chosen_bands(self.dir_path, self._mode, (256, 256), (self._x_position, self._y_position))
         print(len(tile_layers))
-        if len(tile_layers) == 3:                    
-            self.img = equlalize_hist(stack_three_channels(tile_layers))
-            self._qimg = QImage(self.img.data, self.img.shape[1], self.img.shape[0], self.img.strides[0], QImage.Format_RGB888)
+        if len(tile_layers) == 3:                              
+            self.img = to_uint8(stack_three_channels(tile_layers))
+            self.img_eqd = equlalize_hist(self.img)  
+            self._qimg = QImage(self.img_eqd.data, self.img_eqd.shape[1], self.img_eqd.shape[0], self.img_eqd.strides[0], QImage.Format_RGB888)
         if len(tile_layers) == 2:
-            self.img = equlalize_hist(NBR(tile_layers))
-            self._qimg = QImage(self.img.data, self.img.shape[1], self.img.shape[0], self.img.strides[0], QImage.Format_Indexed8)
+            self.img = to_uint8(NBR(tile_layers))
+            self.img_eqd = equlalize_hist(self.img)            
+            self._qimg = QImage(self.img_eqd.data, self.img_eqd.shape[1], self.img_eqd.shape[0], self.img_eqd.strides[0], QImage.Format_Indexed8)
         pixm = QPixmap(self._qimg)
         self.cnv_img.setPixmap(pixm.scaled(self.img.shape[1] * self._x_scale, self.img.shape[0]*self._y_scale, Qt.KeepAspectRatio))
 
         self._ih = pixm.height()
         self._iw = pixm.width()
 
-    def open_previous_file(self):
+    def open_previous_file(self):        
         if self._x_position >= self.STEP:
             self._x_position -= self.STEP
         # self._tile_number -= 1
+        self.state_new_image()
         self.open_file()
 
     def open_next_file(self):
+
         if self._x_position <= self._max_band_width + self.STEP:
             self._x_position += self.STEP
         elif self._y_position <= self._max_band_height + self.STEP:
             self._y_position += self.STEP
+
+        self.state_new_image()
         self.open_file()
 
     def change_thresh(self, thresh):
@@ -273,19 +256,25 @@ class myGUI(QWidget):
         if self._three_channels == True:
             # changes the mask inplace
             cv2.floodFill(self.img, self._mask, seedPoint, 0, (thresh,)*3, (thresh,)*3, flags)
+        else:
+            # changes the mask inplace
+            cv2.floodFill(self.img, self._mask, seedPoint, 0, thresh, thresh, flags)
+
+        self.draw_contours()
+        
+    def draw_contours(self):
+        if self._three_channels == True:
             # contours to represent the type mask
             contours_type, _ = cv2.findContours(self._mask_type[1:-1, 1:-1], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            draw_type = cv2.drawContours(self.img.copy(), contours_type, -1, (0, 128, 128), 1)
+            draw_type = cv2.drawContours(self.img.copy(), contours_type, -1, (255, 255, 255), 1)
             # contours to represent the current selection
             contours_selection, _ = cv2.findContours(self._mask[1:-1, 1:-1], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
-            draw_selection = cv2.drawContours(draw_type.copy(), contours_selection, -1, (128, 128, 0), 1)
+            draw_selection = cv2.drawContours(draw_type.copy(), contours_selection, -1, (255, 255, 0), 1)
             # display both selections
             applied_mask_1 = QImage(draw_selection.data, draw_selection.shape[1], draw_selection.shape[0], draw_selection.strides[0], QImage.Format_RGB888)
             pixm = QPixmap(applied_mask_1)
             self.cnv_img.setPixmap(pixm.scaled(self.cnv_img.pixmap().width(),self.cnv_img.pixmap().height(), Qt.KeepAspectRatio))
         else:
-            # changes the mask inplace
-            cv2.floodFill(self.img, self._mask, seedPoint, 0, thresh, thresh, flags)
             # contours to represent the type mask
             contours_type, _ = cv2.findContours(self._mask_type[1:-1, 1:-1], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
             draw_type = cv2.drawContours(self.img.copy(), contours_type, -1, 255, 1)
@@ -296,7 +285,6 @@ class myGUI(QWidget):
             applied_mask_1 = QImage(draw_selection.data, draw_selection.shape[1], draw_selection.shape[0], draw_selection.strides[0], QImage.Format_Indexed8)
             pixm = QPixmap(applied_mask_1)
             self.cnv_img.setPixmap(pixm.scaled(self.cnv_img.pixmap().width(),self.cnv_img.pixmap().height(), Qt.KeepAspectRatio))
-
 
     def x2(self):
 
@@ -347,19 +335,60 @@ class myGUI(QWidget):
         self.cnv_msk.setPixmap(pixm_mask.scaled(self.cnv_img.pixmap().width(),self.cnv_img.pixmap().height(), Qt.KeepAspectRatio))
 
     def get_type(self):
+        
         items = ('river', 'lake', 'road', 'building', 'firebreak', 'cloud', 'cloud shadow')
                 
         item, ok = QInputDialog.getItem(self, "select input dialog", 
             "surface types", items, 0, False)
                 
         if ok and item:
-            self.btn_add.setDisabled(False)
-            self.btn_subtract.setDisabled(False)
-            self.btn_save_mask.setDisabled(False)
-            self.tile_info['layer'] = item
-            self.cnv_img_info.setText('\n'.join([': '.join(i) for i in self.tile_info.items()]))
-            self._surface_type = item
-            self._wand_enabled = True
+            self.state_mask(item)
+
+    def state_init(self):
+        pass
+
+    def state_start(self):
+
+        # self.tiles_list = os.listdir(str(self.dir_path))
+        self.btn_prev.setDisabled(False)
+        self.btn_next.setDisabled(False)
+        # self._tile_number = 0
+        _, sizes = get_size_info(self.dir_path)
+        self._max_band_width = max(sizes, key=lambda x: x[0])[0]
+        self._max_band_height = max(sizes, key=lambda x: x[1])[1]
+        self._x_position = 0
+        self._y_position = 0
+        self._mode = (1, 2, 3)
+        self._three_channels = True
+        # self._funct = lambda x: x
+        print(self._max_band_width, self._max_band_height)
+    
+    def state_mask(self, item):
+
+        self.btn_add.setDisabled(False)
+        self.btn_subtract.setDisabled(False)
+        self.btn_save_mask.setDisabled(False)
+        self.tile_info['layer'] = item
+        self.cnv_img_info.setText('\n'.join([': '.join(i) for i in self.tile_info.items()]))
+        self._surface_type = item
+        self._wand_enabled = True
+
+    def state_new_image(self):
+
+        self._wand_enabled = False
+
+        self.tile_info = {'file': '', 'layer': '', }
+        self.create_mask_type()
+
+        self.btn_new_mask.setDisabled(False)
+        self.btn_add.setDisabled(True)
+        self.btn_subtract.setDisabled(True)        
+
+        self._x_scale = 2
+        self._y_scale = 2
+        self._x2_pressed = False
+
+        self.tile_info['file']  = 'plug'
 
 
 if __name__ == "__main__":
