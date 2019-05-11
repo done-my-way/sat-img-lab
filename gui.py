@@ -48,9 +48,9 @@ class myGUI(QWidget):
 
     def initUI(self):
 
-        self.STEP = 256
+        self.STEP = 512
 
-        self._x_position = 0
+        self._x_position = -self.STEP
         self._y_position = 0
         self._mode = (1, 2, 3)
         self._funct = lambda x: x
@@ -65,8 +65,8 @@ class myGUI(QWidget):
 
         self._x2_pressed = False
 
-        self._x_scale = 2
-        self._y_scale = 2
+        self._x_scale = 1
+        self._y_scale = 1
 
         self._x = 0
         self._y = 0
@@ -196,7 +196,7 @@ class myGUI(QWidget):
 
         self.cnv_img_info.setText('\n'.join([': '.join(i) for i in self.tile_info.items()]))
 
-        tile_layers = open_chosen_bands(self.dir_path, self._mode, (256, 256), (self._x_position, self._y_position))
+        tile_layers = open_chosen_bands(self.dir_path, self._mode, (self.STEP, self.STEP), (self._x_position, self._y_position))
         print(len(tile_layers))
         if len(tile_layers) == 3:                              
             self.img = to_uint8(stack_three_channels(tile_layers))
@@ -207,10 +207,26 @@ class myGUI(QWidget):
             self.img_eqd = equlalize_hist(self.img)            
             self._qimg = QImage(self.img_eqd.data, self.img_eqd.shape[1], self.img_eqd.shape[0], self.img_eqd.strides[0], QImage.Format_Indexed8)
         pixm = QPixmap(self._qimg)
-        self.cnv_img.setPixmap(pixm.scaled(self.img.shape[1] * self._x_scale, self.img.shape[0]*self._y_scale, Qt.KeepAspectRatio))
+        self.cnv_img.setPixmap(pixm.scaled(self.img.shape[1] * self._x_scale, self.img.shape[0]*self._y_scale)) #, Qt.KeepAspectRatio))
 
         self._ih = pixm.height()
         self._iw = pixm.width()
+
+    def move_right(self):
+        if self._x_position <= self._max_band_width - self.STEP:
+            self._x_position += self.STEP
+
+    def move_left(self):
+        if self._x_position >= self.STEP:
+            self._x_position -= self.STEP
+
+    def move_up(self):
+        if self._y_position >= self.STEP:
+            self._y_position -= self.STEP
+
+    def move_down(self):
+        if self._y_position <= self._max_band_height - self.STEP:
+            self._y_position += self.STEP
 
     def open_previous_file(self):        
         if self._x_position >= self.STEP:
@@ -221,10 +237,13 @@ class myGUI(QWidget):
 
     def open_next_file(self):
 
-        if self._x_position <= self._max_band_width + self.STEP:
+        if self._x_position <= self._max_band_width - self.STEP:
             self._x_position += self.STEP
-        elif self._y_position <= self._max_band_height + self.STEP:
+        elif self._y_position <= self._max_band_height - self.STEP:
+            self._x_position = 0
             self._y_position += self.STEP
+        
+        print(str(self._x_position // self.STEP) + '/' + str(self._max_band_width // self.STEP))
 
         self.state_new_image()
         self.open_file()
@@ -356,7 +375,7 @@ class myGUI(QWidget):
         _, sizes = get_size_info(self.dir_path)
         self._max_band_width = max(sizes, key=lambda x: x[0])[0]
         self._max_band_height = max(sizes, key=lambda x: x[1])[1]
-        self._x_position = 0
+        self._x_position = -self.STEP
         self._y_position = 0
         self._mode = (1, 2, 3)
         self._three_channels = True
@@ -384,8 +403,8 @@ class myGUI(QWidget):
         self.btn_add.setDisabled(True)
         self.btn_subtract.setDisabled(True)        
 
-        self._x_scale = 2
-        self._y_scale = 2
+        self._x_scale = 1
+        self._y_scale = 1
         self._x2_pressed = False
 
         self.tile_info['file']  = 'plug'

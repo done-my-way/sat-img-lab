@@ -34,6 +34,7 @@ def open_tile(chosen_bands, all_bands, all_sizes, size, position):
                 position[0] * size_coefs[band][0], 
                 position[1] * size_coefs[band][1], 
                 size[0] * size_coefs[band][0], size[1] * size_coefs[band][1]))
+            print(img.shape)
         tile_layers.append(img)
     return tile_layers
 
@@ -44,7 +45,19 @@ def open_chosen_bands(dirpath, chosen_bands, size, position):
     # the files should be named according to the bands
     # they represent: B01.jp2, B02.jp2 ...
 
+    print(position, size)
+
     bands = listdir(dirpath)
+    w = []
+    h = []
+    for band in bands:
+        with rasterio.open(Path(dirpath, band)) as src:
+            w.append(src.meta['width'])
+            h.append(src.meta['height'])
+
+    mw = max(w)
+    mh = max(h)
+
     bands.sort()
     bands = [Path(dirpath, band) for n, band in enumerate(bands) if n in chosen_bands]
     w = []
@@ -54,7 +67,7 @@ def open_chosen_bands(dirpath, chosen_bands, size, position):
             w.append(src.meta['width'])
             h.append(src.meta['height'])
     # TODO: check image limits
-    size_coefs = [(max(w)//ww, max(h)//hh) for ww, hh in zip(w, h)]
+    size_coefs = [(mw//ww, mh//hh) for ww, hh in zip(w, h)]
     #
     tile_layers = []
     for i in range(len(chosen_bands)):
@@ -66,21 +79,24 @@ def open_chosen_bands(dirpath, chosen_bands, size, position):
                 position[0] // size_coefs[i][0], 
                 position[1] // size_coefs[i][1], 
                 size[0] // size_coefs[i][0], size[1] // size_coefs[i][1]))
+            print(img.shape)
         tile_layers.append(img)
     return tile_layers
 
 def stack_three_channels(tile_layers):
     # resize tiles to the size of the biggest tile
-    size = max([im.shape[0] for im in tile_layers])
-    tile_layers = [cv2.resize(im, (size, size)) for im in tile_layers]
+    size_x = max([im.shape[1] for im in tile_layers])
+    size_y = max([im.shape[0] for im in tile_layers])
+    tile_layers = [cv2.resize(im, (size_x, size_y)) for im in tile_layers]
     tile_layers = np.hstack(tile_layers)
     # convert (3, a, a) to (a, a, 3)-shaped numpy-array
     a = tile_layers.shape[0]
-    new_img = np.zeros((a, a, 3))
-    new_img[:,:,2] = tile_layers[:,0:a]
-    new_img[:,:,1] = tile_layers[:,a:2*a]
-    new_img[:,:,0] = tile_layers[:, 2*a:3*a]
-    print(new_img.dtype)
+    b = tile_layers.shape[1] // 3
+    new_img = np.zeros((a, b, 3))
+    new_img[:,:,2] = tile_layers[:,0:b]
+    new_img[:,:,1] = tile_layers[:,b:2*b]
+    new_img[:,:,0] = tile_layers[:, 2*b:3*b]
+    # print(new_img.dtype)
     return new_img
 
 def NBR(tile_layers):
@@ -90,7 +106,7 @@ def NBR(tile_layers):
     div1 = (tile_layers[0] - tile_layers[1])
     div2 = (tile_layers[0] + tile_layers[1])
     res = np.divide(div1, div2)
-    print(np.any(res < 0))
+    # print(np.any(res < 0))
     return res
 
 def to_uint8(input_image):
@@ -138,7 +154,7 @@ def equlalize_hist(input_image):
 
 def clip_hist(image, percent=(0, 0)):
     borders = np.percentile(image, (percent[0], 100 - percent[1]))
-    print(borders)
+    # print(borders)
     image = (image - borders[0])*255/(borders[1] - borders[0])
     # image = np.ma.filled(image,0).astype('uint8')
     return image
