@@ -17,6 +17,7 @@ from PyQt5.QtWidgets import (QAction, QApplication, QButtonGroup, QComboBox,
                              QSizeGrip, QSlider, QWidget)
 
 from windows_and_channels import *
+import mask_tools
 
 # needed to pass selected point coordinates to the cv2.floodFill()
 Point = namedtuple('Point', 'x, y')
@@ -101,8 +102,8 @@ class myGUI(QWidget):
         #
         self.cnv_img_info = QLabel(self)
 
-        self._ih = pixm.height()
-        self._iw = pixm.width()
+        self._ih = self.STEP
+        self._iw = self.STEP
 
         self.sld = QSlider(Qt.Horizontal, self)
         self.sld.setFixedSize(500, 30)
@@ -197,7 +198,10 @@ class myGUI(QWidget):
         self.cnv_img_info.setText('\n'.join([': '.join(i) for i in self.tile_info.items()]))
 
         tile_layers = open_chosen_bands(self.dir_path, self._mode, (self.STEP, self.STEP), (self._x_position, self._y_position))
-        print(len(tile_layers))
+        
+        self._mask_type = numpy.zeros((self._ih+2, self._iw+2), dtype=uint8)
+        self._mask_type[1:-1, 1:-1] = mask_tools.load_mask_tile(self._mask_file, (self._x_position, self._y_position), (self.STEP, self.STEP))
+        
         if len(tile_layers) == 3:                              
             self.img = to_uint8(stack_three_channels(tile_layers))
             self.img_eqd = equlalize_hist(self.img)  
@@ -326,10 +330,16 @@ class myGUI(QWidget):
 
 
     def save_mask(self):
-        if not os.path.isdir('./masks'):
-            os.mkdir('./masks')
-        path = './masks/' + self._tile_name.split('.')[0] + '_' + self._surface_type + '.bmp'
-        imwrite(path, self._mask_type[1:-1, 1:-1]*255, format='bmp')
+
+        pos = (self._x_position, self._y_position)
+        size = (self.STEP, self.STEP)
+
+        mask_tools.save_mask_tile(self._mask_file, self._mask_type[1:-1, 1:-1], pos, size)
+        
+        # if not os.path.isdir('./masks'):
+        #     os.mkdir('./masks')
+        # path = './masks/' + self._tile_name.split('.')[0] + '_' + self._surface_type + '.bmp'
+        # imwrite(path, self._mask_type[1:-1, 1:-1]*255, format='bmp')
 
     def combine_masks(self, mask_1, mask_2):
         # works in place (mask_1)
@@ -341,7 +351,8 @@ class myGUI(QWidget):
         mask_1 &= (mask_2 != 1)
         self.show_type_mask()
 
-    def create_mask_type(self):
+    def create_mask_type(self):     
+
 
         self._mask_type = numpy.zeros((self._ih+2, self._iw+2), dtype=uint8)
         self.show_type_mask()
@@ -360,13 +371,23 @@ class myGUI(QWidget):
         item, ok = QInputDialog.getItem(self, "select input dialog", 
             "surface types", items, 0, False)
                 
-        if ok and item:
+        if ok and item:            
             self.state_mask(item)
+            # TODO: change paths
+            # TODO: change name assignment
+            dir_path = './masks'
+            file_name = self._surface_type + '.npy'
+            masks = mask_tools.check_masks(dir_path)
+            if file_name not in masks:
+                mask_tools.create_mask(file_name, dir_path, (self._max_band_height, self._max_band_width))
+            self._mask_file = mask_tools.open_mask(Path(dir_path, file_name))
 
     def state_init(self):
         pass
 
     def state_start(self):
+
+        
 
         # self.tiles_list = os.listdir(str(self.dir_path))
         self.btn_prev.setDisabled(False)
@@ -375,6 +396,10 @@ class myGUI(QWidget):
         _, sizes = get_size_info(self.dir_path)
         self._max_band_width = max(sizes, key=lambda x: x[0])[0]
         self._max_band_height = max(sizes, key=lambda x: x[1])[1]
+
+        mask_tools.create_mask('empty', './masks', (self._max_band_height, self._max_band_width))
+        self._mask_file = mask_tools.open_mask(Path('./masks', 'empty.npy'))
+
         self._x_position = -self.STEP
         self._y_position = 0
         self._mode = (1, 2, 3)
