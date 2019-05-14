@@ -24,9 +24,10 @@ def open_mask(file_name):
     return mask
 
 # load mask: consider memmap
+
 def load_mask_tile(mask, pos, size):
     mask_tile = mask[pos[0]:pos[0] + size[0], pos[1]:pos[1] + size[1]]
-    return mask_tile
+    return mask_tile.copy()
 
 # save mask: consider memmap
 def save_mask_tile(mask, tile, pos, size):

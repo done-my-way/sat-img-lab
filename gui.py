@@ -67,8 +67,9 @@ class myGUI(QWidget):
         
         # btn_new_mask ...
         self.btn_choose_masks = QPushButton('Open Masks', self)
-        self.btn_choose_masks.pressed.connect(self.get_type)
-        self.btn_choose_masks.pressed.connect(self.create_mask_type)
+        self.btn_choose_masks.pressed.connect(self.choose_masks_dir)
+        # self.btn_choose_masks.pressed.connect(self.get_type)
+        # self.btn_choose_masks.pressed.connect(self.create_mask_type)
         self.btn_choose_masks.setDisabled(True)
 
         # btn_add ...
@@ -122,6 +123,7 @@ class myGUI(QWidget):
         self.cmb_mask.setEditable(True)
         self.cmb_mask.InsertAtBottom
         self.cmb_mask.setDisabled(True)
+        self.cmb_mask.activated.connect(self.choose_mask_file)
 
         # TODO: remove
         # self.btn_scale = QPushButton('Scale: x2', self)
@@ -164,7 +166,7 @@ class myGUI(QWidget):
     
     def choose_bands_dir(self):
 
-        """ Select directory with bands images selection. """
+        """ Select directory with band images """
 
         self.bands_path = QFileDialog.getExistingDirectoryUrl(self).path()
 
@@ -172,8 +174,36 @@ class myGUI(QWidget):
             self.state_init()
             self.open_file()
 
+            self.btn_choose_masks.setDisabled(False)
+
     def choose_masks_dir(self):
-        pass
+        
+        """ Select directory with mask files """
+
+        self.masks_path = QFileDialog.getExistingDirectoryUrl(self).path()
+        
+        if self.masks_path:
+            self.cmb_mask.setDisabled(False)
+            masks = os.listdir(self.masks_path)
+            self.cmb_mask.clear()
+            self.cmb_mask.addItems(masks)
+
+    def choose_mask_file(self, e):
+
+        filename = self.cmb_mask.currentText()
+        self._mask_file = mask_tools.open_mask(Path(self.masks_path, filename))
+        self.load_mask_tile()
+        self.set_mask_tile()
+        self.state_active()
+
+    def load_mask_tile(self):
+        self._mask_type = numpy.zeros(self._mask_size, dtype=uint8)
+        self._mask_type[1:-1, 1:-1] = mask_tools.load_mask_tile(self._mask_file, (self._x_pos * self.STEP, self._y_pos*self.STEP), self._tile_size)
+        
+    def set_mask_tile(self):        
+        qimg = QImage(self._mask_type * 255, self._mask_type.shape[1], self._mask_type.shape[0], self._mask_type.strides[0], QImage.Format_Grayscale8)
+        pixm_mask = QPixmap(qimg)
+        self.cnv_msk.setPixmap(pixm_mask)
 
     def open_file(self):
 
@@ -182,56 +212,55 @@ class myGUI(QWidget):
         """
         # TODO: info-text
         # self.lbl_info.setText('\n'.join([': '.join(i) for i in self.tile_info.items()]))
+        # print('!', self._size, list(i * self.STEP for i in self._pos))
 
-        tile_layers = open_chosen_bands(self.bands_path, self._mode, (self._tile_h, self._tile_w), (self._x_pos * self.STEP, self._y_pos * self.STEP))
+        tile_layers = open_chosen_bands(self.bands_path, self._mode, self._tile_size, (self._x_pos * self.STEP, self._y_pos*self.STEP)) #wac
         
         # TODO: move to mask opening fnct
         # self._mask_type = numpy.zeros((self._tile_h+2, self._tile_w+2), dtype=uint8)
         # self._mask_type[1:-1, 1:-1] = mask_tools.load_mask_tile(self._mask_file, (self._x_pos, self._y_pos), (self.STEP, self.STEP))
         
-        if len(tile_layers) == 3:                              
-            self.img = to_uint8(stack_three_channels(tile_layers))
-            self.img_eqd = equlalize_hist(self.img)  
-            self._qimg = QImage(self.img_eqd.data, self.img_eqd.shape[1], self.img_eqd.shape[0], self.img_eqd.strides[0], QImage.Format_RGB888)
+        if len(tile_layers) == 3:
+            self.img = np.dstack([tile_layers[i] for i in (2, 1, 0)])                             
+            # same 
+            self.img_eqd = equlalize_hist(self.img)  #wac
+            self._qimg = QImage(self.img_eqd.data, self.img_eqd.shape[1], self.img_eqd.shape[0], self.img_eqd.strides[0], QImage.Format_RGB888) #wac
         if len(tile_layers) == 2:
-            self.img = to_uint8(NBR(tile_layers))
-            self.img_eqd = equlalize_hist(self.img)            
+            self.img = NBR(tile_layers) #wac
+            # same
+            self.img_eqd = equlalize_hist(self.img) #wac           
             self._qimg = QImage(self.img_eqd.data, self.img_eqd.shape[1], self.img_eqd.shape[0], self.img_eqd.strides[0], QImage.Format_Indexed8)
         pixm = QPixmap(self._qimg)
         self.cnv_img.setPixmap(pixm.scaled(self.img.shape[1] * self._x_scale, self.img.shape[0]*self._y_scale)) #, Qt.KeepAspectRatio))
 
     def move_right(self):
         if self._x_pos <= self._max_band_width - self.STEP:
-            self._x_pos += self.STEP
+            self._x_pos += 1
 
     def move_left(self):
         if self._x_pos >= self.STEP:
-            self._x_pos -= self.STEP
+            self._x_pos -= 1
 
     def move_up(self):
         if self._y_pos >= self.STEP:
-            self._y_pos -= self.STEP
-
+            self._y_pos -= 1
     def move_down(self):
         if self._y_pos <= self._max_band_height - self.STEP:
-            self._y_pos += self.STEP
+            self._y_pos += 1
 
     def open_previous_file(self):        
-        if self._x_pos >= self.STEP:
-            self._x_pos -= self.STEP
-        # self._tile_number -= 1
+        if self._x_pos >= 1:
+            self._x_pos -= 1
         self.state_new_image()
         self.open_file()
 
     def open_next_file(self):
 
-        if self._x_pos <= self._max_band_width - self.STEP:
-            self._x_pos += self.STEP
-        elif self._y_pos <= self._max_band_height - self.STEP:
+        if self._x_pos <= self._max_band_width // self.STEP:
+            self._x_pos += 1
+        elif self._y_pos <= self._max_band_height // self.STEP:
             self._x_pos = 0
-            self._y_pos += self.STEP
-        
-        print(str(self._x_pos // self.STEP) + '/' + str(self._max_band_width // self.STEP))
+            self._y_pos += 1      
 
         self.state_new_image()
         self.open_file()
@@ -244,21 +273,20 @@ class myGUI(QWidget):
         """Choose a connected component and show the chosen region"""
 
         # enable the magic wand tool only if a surface type for the mask is selected
-
         if self._wand_enabled == False:
             return None
 
         # move slider to the initial position
         self.sld_thresh.setValue(thresh)
         # change seedPoint coordinates
-        self._x_curs= x // self._x_scale
-        self._y_curs= y // self._y_scale      
-        seedPoint = Point(self._x, self._y)
+        self._x_curs = x // self._x_scale
+        self._y_curs = y // self._y_scale      
+        seedPoint = Point(self._x_curs, self._y_curs)
         # number of neighbour pixels considered | value to fill the mask
         flags = 4 | (1 << 8)
         # compare considered points to the seed | do not change the pic itself
         flags |= cv2.FLOODFILL_FIXED_RANGE |  cv2.FLOODFILL_MASK_ONLY
-        self._mask = numpy.zeros((self._tile_h+2, self._tile_w+2), dtype=uint8)
+        self._mask = numpy.zeros(self._mask_size, dtype=uint8)
 
         if len(self._mode) == 3:
             # changes the mask inplace
@@ -337,16 +365,17 @@ class myGUI(QWidget):
 
     def create_mask_type(self):     
 
-
-        self._mask_type = numpy.zeros((self._tile_h+2, self._tile_w+2), dtype=uint8)
-        self.show_type_mask()
-
-    def show_type_mask(self):
-
-        test = self._mask_type * 255
-        type_mask = QImage(test.data, test.shape[1], test.shape[0], test.strides[0], QImage.Format_Grayscale8)
-        pixm_mask = QPixmap(type_mask)
+        self._mask_type = numpy.zeros(self._mask_size, dtype=uint8)
+        self._mask_type[1:-1, 1:-1] = mask_tools.load_mask_tile(self._mask_file, (self._y_pos, self._x_pos), (self._tile_h, self._tile_w))
+        pixm_mask = QPixmap(self._mask_type[1:-1, 1:-1])
         self.cnv_msk.setPixmap(pixm_mask.scaled(self.cnv_img.pixmap().width(),self.cnv_img.pixmap().height(), Qt.KeepAspectRatio))
+
+    # def show_type_mask(self):
+
+    #     test = self._mask_type #* 255
+    #     type_mask = QImage(test.data, test.shape[1], test.shape[0], test.strides[0], QImage.Format_Mono)
+    #     pixm_mask = QPixmap(type_mask)
+    #     self.cnv_msk.setPixmap(pixm_mask.scaled(self.cnv_img.pixmap().width(),self.cnv_img.pixmap().height(), Qt.KeepAspectRatio))
 
     def get_type(self):
         
@@ -374,15 +403,23 @@ class myGUI(QWidget):
         # tile window position within the whole image
         self._x_pos = 0
         self._y_pos = 0
+        self._pos = (self._y_pos, self._x_pos)
 
         # cursor position within a tile
         self._x_curs= 0
         self._y_curs= 0
+        self._curs = (self._y_curs, self._x_curs)
 
         # default tile size as for the biggest band
         # divided proportionally for smaller bands
         self._tile_h = self.STEP
         self._tile_w = self.STEP
+        self._tile_size = (self._tile_h, self._tile_w)
+
+        # default mask tile size
+        self._mask_h = self._tile_h + 2  
+        self._mask_w = self._tile_w + 2
+        self._mask_size = (self._mask_h, self._mask_w)
 
         # image scale (currently not used)
         # TODO: remove 
@@ -392,25 +429,25 @@ class myGUI(QWidget):
         # bands composition mode
         self._mode = (1, 2, 3)
 
-    def state_start(self):
-      
+    def state_active(self):
 
-        # self.tiles_list = os.listdir(str(self.bands_path))
-        self.btn_prev.setDisabled(False)
+        coef_h, coef_w, mh, mw = get_size_coefs(self.bands_path) #wac        
+        self._max_band_width = mh
+        self._max_band_height = mw
+        self._map_size = (mh, mw)
+
+        self._wand_enabled = True
+        # TODO: do I need it heree, the mask
+        self._mask = np.zeros(self._mask_size)
+
+        self.btn_add.setDisabled(False)
+        self.btn_subtract.setDisabled(False)
+        self.btn_save_mask.setDisabled(False)
         self.btn_next.setDisabled(False)
-        # self._tile_number = 0
-        _, sizes = get_size_info(self.bands_path)
-        self._max_band_width = max(sizes, key=lambda x: x[0])[0]
-        self._max_band_height = max(sizes, key=lambda x: x[1])[1]
-        # TODO: get rid of the 'empty.npy'
-        mask_tools.create_mask('empty', './masks', (self._max_band_height, self._max_band_width))
-        self._mask_file = mask_tools.open_mask(Path('./masks', 'empty.npy'))
+        self.btn_prev.setDisabled(False)
+        self.cmb_mode.setDisabled(False)
+        self.sld_thresh.setDisabled(False)
 
-        self._x_pos = -self.STEP
-        self._y_pos = 0
-        self._mode = (1, 2, 3)
-        # self._funct = lambda x: x
-        print(self._max_band_width, self._max_band_height)
     
     def state_mask(self, item):
 
@@ -424,20 +461,20 @@ class myGUI(QWidget):
 
     def state_new_image(self):
 
-        self._wand_enabled = False
+        # self.tile_info = {'file': '', 'layer': '', }
+        # self.create_mask_type()
+        self.load_mask_tile()
+        self.set_mask_tile()
 
-        self.tile_info = {'file': '', 'layer': '', }
-        self.create_mask_type()
+        # self.btn_choose_masks.setDisabled(False)
+        # self.btn_add.setDisabled(True)
+        # self.btn_subtract.setDisabled(True)        
 
-        self.btn_choose_masks.setDisabled(False)
-        self.btn_add.setDisabled(True)
-        self.btn_subtract.setDisabled(True)        
+        # self._x_scale = 1
+        # self._y_scale = 1
+        # self._x2_pressed = False
 
-        self._x_scale = 1
-        self._y_scale = 1
-        self._x2_pressed = False
-
-        self.tile_info['file']  = 'plug'
+        # self.tile_info['file']  = 'plug'
 
 
 if __name__ == "__main__":
