@@ -68,29 +68,15 @@ def NBR(tile_layers):
     res = np.divide(div1, div2)
     return res
 
-# def to_uint8(input_image):
-
-#     output_image = input_image.copy()
-
-#     if len(output_image.shape) == 3:
-#         for channel in range(3):
-#             output_image[:,:,channel] = clip_hist(output_image[:,:,channel])      
-#     elif len(output_image.shape) == 2:
-#         output_image = clip_hist(output_image)
-
-#     output_image = output_image.astype(np.uint8)
-    
-#     return output_image
-
-def equlalize_hist(input_image):
+def equlalize_hist(input_image, percent=(0, 0)):
 
     output_image = input_image.copy()
 
     if len(output_image.shape) == 3:
         for channel in range(3):
-            output_image[:,:,channel] = clip_hist(output_image[:,:,channel])      
+            output_image[:,:,channel] = clip_hist(output_image[:,:,channel], percent)      
     elif len(output_image.shape) == 2:
-        output_image = clip_hist(output_image)
+        output_image = clip_hist(output_image, percent)
 
     output_image = output_image.astype(np.uint8)
     

@@ -27,12 +27,11 @@ def open_mask(file_name):
 
 def load_mask_tile(mask, pos, size):
     mask_tile = mask[pos[0]:pos[0] + size[0], pos[1]:pos[1] + size[1]]
-    return mask_tile.copy()
+    return mask_tile
 
 # save mask: consider memmap
 def save_mask_tile(mask, tile, pos, size):
-    mask[pos[0]:pos[0] + size[0], pos[1]:pos[1] + size[1]] = tile.copy()
-    return None
+    mask[pos[0]:pos[0] + size[0], pos[1]:pos[1] + size[1]] = tile
 
 # layer mask over an image: alpha? (layers in PyQy.Image? or cv2)
 # better contours than opacity?
@@ -48,29 +47,3 @@ def mask_image(image, mask, alpha=0.1):
     # overlay
 
     return masked
-
-if __name__ == '__main__':
-    # test it 1
-    # create_mask('./masks/mask.npy', (10900, 10900))
-    # mask = open_mask('./masks/mask.npy')
-    # size = (10, 10)
-    # position = (1000, 1000)
-    # tile = np.full(size, 27)
-    # temp1 = load_mask(mask, position, size)
-    # print(temp1)
-    # save_mask(mask, tile, position, size)
-    # temp2  = load_mask(mask, position, size)    
-    # print(temp2)
-
-    # test it 2
-    image = imageio.imread('./tiles_sat/00.jp2')
-    image = image.astype(np.uint8)
-    mask = np.full((256, 256), 1, dtype = np.uint8)
-    lx, ly = mask.shape
-    X, Y = np.ogrid[0:lx, 0:ly]
-    circle = (X - lx / 2) ** 2 + (Y - ly / 2) ** 2 > lx * ly / 4
-    mask[circle] = 0
-    print(image.dtype, mask.dtype)
-    masked = mask_image(image, mask)
-    plt.imshow(masked)
-    plt.show()
