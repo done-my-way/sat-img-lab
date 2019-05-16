@@ -13,9 +13,9 @@ from PyQt5.QtGui import QCursor, QImage, QPixmap
 from PyQt5.QtWidgets import (QAction, QApplication, QButtonGroup, QComboBox,
                              QFileDialog, QFrame, QGridLayout, QHBoxLayout,
                              QInputDialog, QLabel, QPushButton, QRadioButton,
-                             QSizeGrip, QSlider, QWidget)
+                             QSizeGrip, QSlider, QWidget, QLineEdit)
 from windows_and_channels import *
-import mask_tools
+# import mask_tools
 
 # needed to pass selected point coordinates to the cv2.floodFill()
 Point = namedtuple('Point', 'x, y')
@@ -83,9 +83,9 @@ class myGUI(QWidget):
         self.btn_subtract.setDisabled(True)
 
         # btn_save_mask ...
-        self.btn_save_mask = QPushButton('Save Mask', self)
-        # self.btn_save_mask.pressed.connect(self.save_mask)
-        self.btn_save_mask.setDisabled(True)
+        self.bnt_create_mask = QPushButton('Create Mask', self)
+        self.bnt_create_mask.pressed.connect(self.create_mask_dialogue)
+        self.bnt_create_mask.setDisabled(True)
 
         # btn_next opens the next image from the directory        
         self.btn_next = QPushButton('Next', self)
@@ -142,7 +142,7 @@ class myGUI(QWidget):
         grid.addWidget(self.cmb_mask, 4, 2, 1, 2)
         grid.addWidget(self.btn_add, 5, 2, 1, 2,Qt.AlignVCenter)
         grid.addWidget(self.btn_subtract, 6, 2, 1, 2,Qt.AlignVCenter)
-        grid.addWidget(self.btn_save_mask, 7, 2, 1, 2,Qt.AlignVCenter)
+        grid.addWidget(self.bnt_create_mask, 7, 2, 1, 2,Qt.AlignVCenter)
         grid.addWidget(self.btn_prev, 8, 2, Qt.AlignVCenter)
         grid.addWidget(self.btn_next, 8, 3, Qt.AlignVCenter)        
         self.setLayout(grid)
@@ -188,38 +188,40 @@ class myGUI(QWidget):
             self.cmb_mask.clear()
             self.cmb_mask.addItems(masks)
 
+            coef_h, coef_w, mh, mw = get_size_coefs(self.bands_path) #wac        
+            self._max_band_width = mh
+            self._max_band_height = mw
+            self._map_size = (mh, mw)
+
+        self.bnt_create_mask.setDisabled(False)
+
     def choose_mask_file(self, e):
 
         filename = self.cmb_mask.currentText()
-        self._selection_file = mask_tools.open_mask(Path(self.masks_path, filename))
+        self._mask_file = np.load(Path(self.masks_path, filename), mmap_mode='r+')
         self.state_active()
         self.open_mask_tile()
         self.state_new_image()
 
-    # def save_mask(self):
-    #     mask_tools.save_mask_tile(self._selection_file, self._mask[1:-1, 1:-1], (self._y_pos*self.STEP, self._x_pos*self.STEP), self._tile_size)
-
     def combine_masks(self):
         self._mask |= (self._selection == 1)
-        self._selection_file[self._y_pos*self.STEP : self._y_pos*self.STEP + self.STEP, self._x_pos*self.STEP : self._x_pos*self.STEP + self.STEP] = self._mask[1:-1, 1:-1]
+        self._mask_file[self._y_pos*self.STEP : self._y_pos*self.STEP + self.STEP, self._x_pos*self.STEP : self._x_pos*self.STEP + self.STEP] = self._mask[1:-1, 1:-1]
         self.open_mask_tile()
 
     def subtract_masks(self):
 
         self._mask &= (self._selection != 1)
-        self._selection_file[self._y_pos*self.STEP : self._y_pos*self.STEP + self.STEP, self._x_pos*self.STEP : self._x_pos*self.STEP + self.STEP] = self._mask[1:-1, 1:-1]
+        self._mask_file[self._y_pos*self.STEP : self._y_pos*self.STEP + self.STEP, self._x_pos*self.STEP : self._x_pos*self.STEP + self.STEP] = self._mask[1:-1, 1:-1]
         self.open_mask_tile()
 
     def open_mask_tile(self):
 
-        self._mask = numpy.zeros(self._mask_size, dtype=uint8)
-        self._mask[1:-1, 1:-1] = self._selection_file[self._y_pos*self.STEP : self._y_pos*self.STEP + self.STEP, self._x_pos*self.STEP : self._x_pos*self.STEP + self.STEP]     
-        print(type(self._mask))
-        qimg = QImage(self._mask * 255, self._mask.shape[1], self._mask.shape[0], self._mask.strides[0], QImage.Format_Grayscale8)
-        
-        pixm_mask = QPixmap(qimg)
-
-        self.cnv_msk.setPixmap(pixm_mask)
+            self._mask = numpy.zeros(self._mask_size, dtype=uint8)
+            self._mask[1:-1, 1:-1] = self._mask_file[self._y_pos*self.STEP : self._y_pos*self.STEP + self.STEP, self._x_pos*self.STEP : self._x_pos*self.STEP + self.STEP]     
+            
+            qimg = QImage(self._mask * 255, self._mask.shape[1], self._mask.shape[0], self._mask.strides[0], QImage.Format_Grayscale8)        
+            pixm_mask = QPixmap(qimg)
+            self.cnv_msk.setPixmap(pixm_mask)
 
     def open_map_tile(self):
 
@@ -321,6 +323,28 @@ class myGUI(QWidget):
         pixm = QPixmap(applied_mask_1)
         self.cnv_img.setPixmap(pixm.scaled(self.cnv_img.pixmap().width(),self.cnv_img.pixmap().height(), Qt.KeepAspectRatio))
 
+    def create_mask(self, name):
+
+        if not name in os.listdir(self.masks_path):
+
+            map_ext = [(self._max_band_height // self._tile_h + 1) *  self._tile_h, (self._max_band_width // self._tile_w + 1) * self._tile_w]
+            print(map_ext)
+            mask = np.zeros(map_ext, dtype=np.uint8)
+            np.save(Path(self.masks_path, name), mask)
+
+    def create_mask_dialogue(self):
+
+        name, _ = QInputDialog.getText(self, "New Mask","Enter new mask name (w/o any extensions):", QLineEdit.Normal, "")
+
+        print(name)
+
+        if name:
+            self.create_mask(name)
+            items = os.listdir(self.masks_path)
+            items.sort()
+            self.cmb_mask.addItems(items)
+
+
     # def x2(self):
 
     #     # toggle between x2-enlarged and real-size image
@@ -346,7 +370,7 @@ class myGUI(QWidget):
     # def create_mask_type(self):     
 
     #     self._mask = numpy.zeros(self._mask_size, dtype=uint8)
-    #     self._mask[1:-1, 1:-1] = mask_tools.open_mask_tile(self._selection_file, (self._y_pos, self._x_pos), (self._tile_h, self._tile_w))
+    #     self._mask[1:-1, 1:-1] = mask_tools.open_mask_tile(self._mask_file, (self._y_pos, self._x_pos), (self._tile_h, self._tile_w))
     #     pixm_mask = QPixmap(self._mask[1:-1, 1:-1])
     #     self.cnv_msk.setPixmap(pixm_mask.scaled(self.cnv_img.pixmap().width(),self.cnv_img.pixmap().height(), Qt.KeepAspectRatio))
 
@@ -366,7 +390,7 @@ class myGUI(QWidget):
     #         masks = mask_tools.check_masks(dir_path)
     #         if file_name not in masks:
     #             mask_tools.create_mask(file_name, dir_path, (self._max_band_height, self._max_band_width))
-    #         self._selection_file = mask_tools.open_mask(Path(dir_path, file_name))
+    #         self._mask_file = mask_tools.open_mask(Path(dir_path, file_name))
 
     def state_init(self):
 
@@ -402,20 +426,20 @@ class myGUI(QWidget):
         # bands composition mode
         self._mode = (1, 2, 3)
 
+
+
     def state_active(self):
 
-        coef_h, coef_w, mh, mw = get_size_coefs(self.bands_path) #wac        
-        self._max_band_width = mh
-        self._max_band_height = mw
-        self._map_size = (mh, mw)
+        "The interface is ready to work with masks"
+
+        
 
         self._wand_enabled = True
         # TODO: do I need it heree, the mask
         self._selection = numpy.zeros(self._mask_size, dtype=uint8)
 
         self.btn_add.setDisabled(False)
-        self.btn_subtract.setDisabled(False)
-        self.btn_save_mask.setDisabled(False)
+        self.btn_subtract.setDisabled(False)        
         self.btn_next.setDisabled(False)
         self.btn_prev.setDisabled(False)
         self.cmb_mode.setDisabled(False)
@@ -426,7 +450,7 @@ class myGUI(QWidget):
 
         self.btn_add.setDisabled(False)
         self.btn_subtract.setDisabled(False)
-        self.btn_save_mask.setDisabled(False)
+        self.bnt_create_mask.setDisabled(False)
         self.tile_info['layer'] = item
         self.lbl_info.setText('\n'.join([': '.join(i) for i in self.tile_info.items()]))
         self._surface_type = item

@@ -57,7 +57,7 @@ def open_chosen_bands(dirpath, chosen_bands, size, position):
                 position[1] // coef_w[band], 
                 size[0] // coef_h[band], size[1] // coef_w[band]))
         # resize tiles to the size of the biggest tile        
-        tile_layers.append(cv2.resize(img, size))
+        tile_layers.append(cv2.resize(img, (img.shape[1]*coef_h[band], img.shape[0]*coef_w[band])))
 
     return tile_layers
 
