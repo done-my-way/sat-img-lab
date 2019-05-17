@@ -1,12 +1,9 @@
 import os
 import sys
-import tempfile
 from collections import namedtuple
 from pathlib import Path
 import cv2
-import matplotlib.pyplot as plt
 import numpy
-from imageio import imread, imwrite
 from numpy import ones, uint8
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QCursor, QImage, QPixmap
@@ -63,7 +60,7 @@ class myGUI(QWidget):
         self.btn_choose_bands = QPushButton('Open Bands', self)
         self.btn_choose_bands.pressed.connect(self.choose_bands_dir)
         
-        # btn_new_mask ...
+        # btn_choose_mask opens a dialogue for selecting a directory with masks
         self.btn_choose_masks = QPushButton('Open Masks', self)
         self.btn_choose_masks.pressed.connect(self.choose_masks_dir)
         # self.btn_choose_masks.pressed.connect(self.get_type)
@@ -130,17 +127,17 @@ class myGUI(QWidget):
         
         # set window layout 
         grid = QGridLayout()
-        grid.addWidget(self.cnv_img, 0, 0, 7, 1, Qt.AlignCenter)
-        grid.addWidget(self.sld_thresh, 7, 0, 1, 2, Qt.AlignCenter)
-        grid.addWidget(self.cnv_msk, 0, 1, 7, 1, Qt.AlignCenter)
+        grid.addWidget(self.cnv_img, 0, 0, 8, 1, Qt.AlignVCenter)
+        grid.addWidget(self.sld_thresh, 8, 0, 1, 2, Qt.AlignVCenter)
+        grid.addWidget(self.cnv_msk, 0, 1, 8, 1, Qt.AlignVCenter)
         grid.addWidget(self.btn_choose_bands, 0, 2, 1, 2, Qt.AlignVCenter)
-        grid.addWidget(self.btn_choose_masks, 1, 2, 1, 2,Qt.AlignVCenter)
-        grid.addWidget(self.lbl_info, 2, 2, 1, 2,Qt.AlignVCenter)
-        grid.addWidget(self.cmb_mode, 3, 2, 1, 2)
-        grid.addWidget(self.cmb_mask, 4, 2, 1, 2)
-        grid.addWidget(self.btn_add, 5, 2, 1, 2,Qt.AlignVCenter)
-        grid.addWidget(self.btn_subtract, 6, 2, 1, 2,Qt.AlignVCenter)
-        grid.addWidget(self.bnt_create_mask, 7, 2, 1, 2,Qt.AlignVCenter)
+        grid.addWidget(self.btn_choose_masks, 1, 2, 1, 2, Qt.AlignVCenter)
+        grid.addWidget(self.lbl_info, 2, 2, 1, 2, Qt.AlignVCenter)
+        grid.addWidget(self.cmb_mode, 3, 2, 1, 2, Qt.AlignVCenter)
+        grid.addWidget(self.cmb_mask, 4, 2, 1, 2, Qt.AlignVCenter)
+        grid.addWidget(self.btn_add, 5, 2, 1, 2, Qt.AlignVCenter)
+        grid.addWidget(self.btn_subtract, 6, 2, 1, 2, Qt.AlignVCenter)
+        grid.addWidget(self.bnt_create_mask, 7, 2, 1, 2, Qt.AlignVCenter)
         grid.addWidget(self.btn_prev, 8, 2, Qt.AlignVCenter)
         grid.addWidget(self.btn_next, 8, 3, Qt.AlignVCenter)        
         self.setLayout(grid)
@@ -260,15 +257,15 @@ class myGUI(QWidget):
         
         
         if len(tile_layers) == 3:
-            # same 
-            self.img = equlalize_hist(np.dstack([tile_layers[i] for i in (2, 1, 0)]))  #wac
-            self._qimg = QImage(self.img.data, self.img.shape[1], self.img.shape[0], self.img.strides[0], QImage.Format_RGB888) #wac
+
+            self.img = equlalize_hist(np.dstack([tile_layers[i] for i in (2, 1, 0)]))
+            self._qimg = QImage(self.img.data, self.img.shape[1], self.img.shape[0], self.img.strides[0], QImage.Format_RGB888)
         if len(tile_layers) == 2:
-            # same
-            self.img = equlalize_hist(NBR(tile_layers)) #wac           
+
+            self.img = equlalize_hist(NBR(tile_layers))         
             self._qimg = QImage(self.img.data, self.img.shape[1], self.img.shape[0], self.img.strides[0], QImage.Format_Indexed8)
         pixm = QPixmap(self._qimg)
-        self.cnv_img.setPixmap(pixm.scaled(self.img.shape[1] * self._x_scale, self.img.shape[0]*self._y_scale)) #, Qt.KeepAspectRatio))
+        self.cnv_img.setPixmap(pixm.scaled(self.img.shape[1] * self._x_scale, self.img.shape[0]*self._y_scale))
 
     def open_previous_tile(self):
 
@@ -324,7 +321,7 @@ class myGUI(QWidget):
         # compare considered points to the seed | do not change the pic itself
         flags |= cv2.FLOODFILL_FIXED_RANGE |  cv2.FLOODFILL_MASK_ONLY
         self._selection = numpy.zeros(self._mask_size, dtype=uint8)
-
+        # TODO: allow other 1-channel modes
         if len(self._mode) == 3:
             # changes the mask inplace
             cv2.floodFill(self.img, self._selection, seedPoint, 0, (thresh,)*3, (thresh,)*3, flags)
@@ -338,6 +335,7 @@ class myGUI(QWidget):
 
         # contours to represent the type mask
         contours_type, _ = cv2.findContours(self._mask[1:-1, 1:-1], cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
+        # TODO: allow other 1-channel modes
         if len(self._mode) == 3:
             draw_type = cv2.drawContours(self.img.copy(), contours_type, -1, (255, 255, 255), 1)
             # contours to represent the current selection
@@ -359,8 +357,6 @@ class myGUI(QWidget):
 
         if not name in os.listdir(self.masks_path):
 
-            # map_ext = [(self._max_band_height // self.TILE_H + 1) *  self.TILE_H, (self._max_band_width // self.TILE_W + 1) * self.TILE_W]
-            # print(map_ext)
             mask = np.zeros(self._map_size, dtype=np.uint8)
             np.save(Path(self.masks_path, name), mask)
 
@@ -441,7 +437,6 @@ class myGUI(QWidget):
         self._mask_size = (self.MASK_H, self.MASK_W)
 
         # image scale (currently not used)
-        # TODO: remove 
         self._x_scale = 1
         self._y_scale = 1
 
@@ -455,7 +450,7 @@ class myGUI(QWidget):
         "The interface is ready to work with masks"        
 
         self._wand_enabled = True
-        # TODO: do I need it heree, the mask
+
         self._selection = numpy.zeros(self._mask_size, dtype=uint8)
 
         self.btn_add.setDisabled(False)
@@ -482,6 +477,6 @@ class myGUI(QWidget):
 
 
 if __name__ == "__main__":
-    app = QApplication(sys.argv)
+    app = QApplication([])
     ex = myGUI()
     sys.exit(app.exec_())

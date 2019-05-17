@@ -4,9 +4,7 @@ from os import mkdir
 from os.path import isdir
 from pathlib import Path
 
-# TODO: check the metadata saved
-# TODO: 
-# NB: here on segmentation http://scipy-lectures.org/advanced/image_processing/
+# Not used in current version
 
 class imgCutter:
 
