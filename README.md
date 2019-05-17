@@ -16,8 +16,8 @@ $ git clone https://github.com/WGussev/sat-img-lab.git
 $ cd sat-img-lab
 $ python3 -m pyenv envname
 $ source envname/bin/activate
-$ pip install -r requirements.txt
-$ python3 ./gui.py
+$ pip install -r < requirements.txt
+$ python3 labeller.py
 ```
 
 ## Example

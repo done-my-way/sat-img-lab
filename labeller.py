@@ -45,7 +45,7 @@ class myGUI(QWidget):
         
         self._wand_enabled = False  
 
-        pixm = QPixmap('plug.jpg').scaled(512, 512)
+        pixm = QPixmap('resources/plug.jpg').scaled(512, 512)
 
         # create and initialize image canvas
         self.cnv_img = Canvas(self)
