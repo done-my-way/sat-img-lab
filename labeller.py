@@ -11,7 +11,7 @@ from PyQt5.QtWidgets import (QAction, QApplication, QButtonGroup, QComboBox,
                              QFileDialog, QFrame, QGridLayout, QHBoxLayout,
                              QInputDialog, QLabel, QPushButton, QRadioButton,
                              QSizeGrip, QSlider, QWidget, QLineEdit)
-from windows_and_channels import *
+from band_tools import *
 
 # needed to pass selected point coordinates to the cv2.floodFill()
 Point = namedtuple('Point', 'x, y')
